@@ -9,7 +9,7 @@ const emit = defineEmits<{
 }>()
 
 const { data } = useResumeData()
-const groupRef = shallowRef<THREE.Group>()
+const groupRef = shallowRef()
 
 const { onLoop } = useRenderLoop()
 
@@ -26,7 +26,6 @@ const asteroidPositions = computed(() => {
   })
 })
 
-// Generate connecting line positions as Float32Array
 const lineArrays = computed(() => {
   return data.experience.map((_, i) => {
     const next = (i + 1) % data.experience.length
@@ -39,7 +38,10 @@ const lineArrays = computed(() => {
 
 onLoop(({ elapsed }) => {
   if (groupRef.value) {
-    groupRef.value.rotation.y = elapsed * 0.03
+    const target = groupRef.value.instance || groupRef.value
+    if (target.rotation) {
+      target.rotation.y = elapsed * 0.03
+    }
   }
 })
 </script>

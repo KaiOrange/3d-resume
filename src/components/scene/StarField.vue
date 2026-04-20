@@ -8,14 +8,13 @@ import { useResumeData } from '@/composables/useResumeData'
 const { starCount } = useResponsive()
 const { data } = useResumeData()
 
-const pointsRef = shallowRef<THREE.Points>()
+const pointsRef = shallowRef()
 const { onLoop } = useRenderLoop()
 
 const geometry = new THREE.BufferGeometry()
 const count = starCount.value
 const positions = new Float32Array(count * 3)
 const colors = new Float32Array(count * 3)
-const sizes = new Float32Array(count)
 
 const accentColor = new THREE.Color(data.scene.accentColor)
 const nebulaColor = new THREE.Color(data.scene.nebulaColor)
@@ -35,13 +34,10 @@ for (let i = 0; i < count; i++) {
   colors[i3] = color.r
   colors[i3 + 1] = color.g
   colors[i3 + 2] = color.b
-
-  sizes[i] = Math.random() * 2 + 0.5
 }
 
 geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
 geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1))
 
 const material = new THREE.PointsMaterial({
   size: 0.15,
@@ -55,8 +51,11 @@ const material = new THREE.PointsMaterial({
 
 onLoop(({ delta }) => {
   if (pointsRef.value) {
-    pointsRef.value.rotation.y += delta * 0.005
-    pointsRef.value.rotation.x += delta * 0.002
+    const target = pointsRef.value.instance || pointsRef.value
+    if (target.rotation) {
+      target.rotation.y += delta * 0.005
+      target.rotation.x += delta * 0.002
+    }
   }
 })
 </script>

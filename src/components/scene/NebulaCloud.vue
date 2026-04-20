@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { shallowRef } from 'vue'
 import { useRenderLoop } from '@tresjs/core'
-import * as THREE from 'three'
 import { useResumeData } from '@/composables/useResumeData'
 
 const { data } = useResumeData()
@@ -12,14 +11,20 @@ const cloudPositions = [
   { x: 5, y: 8, z: -35, scale: 12 },
 ]
 
-const cloudRefs = shallowRef<THREE.Mesh[]>([])
+const cloudRef0 = shallowRef()
+const cloudRef1 = shallowRef()
+const cloudRef2 = shallowRef()
+const cloudRefs = [cloudRef0, cloudRef1, cloudRef2]
 
 const { onLoop } = useRenderLoop()
 
 onLoop(({ delta }) => {
-  cloudRefs.value.forEach((cloud, i) => {
-    if (cloud) {
-      cloud.rotation.z += delta * 0.01 * (i % 2 === 0 ? 1 : -1)
+  cloudRefs.forEach((ref, i) => {
+    if (ref.value) {
+      const target = ref.value.instance || ref.value
+      if (target.rotation) {
+        target.rotation.z += delta * 0.01 * (i % 2 === 0 ? 1 : -1)
+      }
     }
   })
 })
@@ -29,7 +34,7 @@ onLoop(({ delta }) => {
   <TresMesh
     v-for="(pos, i) in cloudPositions"
     :key="i"
-    ref="cloudRefs"
+    :ref="cloudRefs[i]"
     :position="[pos.x, pos.y, pos.z]"
     :scale="[pos.scale, pos.scale, 1]"
   >

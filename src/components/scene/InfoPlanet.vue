@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, shallowRef } from 'vue'
 import { useRenderLoop } from '@tresjs/core'
-import * as THREE from 'three'
 import { useResumeData } from '@/composables/useResumeData'
 
 const emit = defineEmits<{
@@ -9,20 +8,19 @@ const emit = defineEmits<{
 }>()
 
 const { data } = useResumeData()
-const meshRef = shallowRef<THREE.Mesh>()
-const glowRef = shallowRef<THREE.Mesh>()
+const groupRef = shallowRef()
 const hovered = ref(false)
 
 const { onLoop } = useRenderLoop()
 
 onLoop(({ delta }) => {
-  if (meshRef.value) {
-    meshRef.value.rotation.y += delta * 0.2
-  }
-  if (glowRef.value) {
-    glowRef.value.rotation.y -= delta * 0.1
-    const scale = hovered.value ? 1.15 : 1.08
-    glowRef.value.scale.setScalar(scale)
+  if (groupRef.value) {
+    const obj = groupRef.value
+    // TresJS refs may expose .instance or be the raw object
+    const target = obj.instance || obj
+    if (target.rotation) {
+      target.rotation.y += delta * 0.2
+    }
   }
 })
 
@@ -38,9 +36,8 @@ function onPointerLeave() {
 </script>
 
 <template>
-  <TresGroup :position="[0, 0, 0]">
+  <TresGroup ref="groupRef" :position="[0, 0, 0]">
     <TresMesh
-      ref="meshRef"
       @click="emit('click')"
       @pointer-enter="onPointerEnter"
       @pointer-leave="onPointerLeave"
@@ -55,7 +52,7 @@ function onPointerLeave() {
       />
     </TresMesh>
 
-    <TresMesh ref="glowRef">
+    <TresMesh :scale="hovered ? 1.15 : 1.08">
       <TresSphereGeometry :args="[2.3, 32, 32]" />
       <TresMeshBasicMaterial
         :color="data.scene.accentColor"
