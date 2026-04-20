@@ -26,14 +26,23 @@ const asteroidPositions = computed(() => {
   })
 })
 
-const lineArrays = computed(() => {
+const lineGeometries = computed(() => {
   return data.experience.map((_, i) => {
     const next = (i + 1) % data.experience.length
-    return new Float32Array([
+    const positions = new Float32Array([
       asteroidPositions.value[i].x, asteroidPositions.value[i].y, asteroidPositions.value[i].z,
       asteroidPositions.value[next].x, asteroidPositions.value[next].y, asteroidPositions.value[next].z,
     ])
+    const geom = new THREE.BufferGeometry()
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    return geom
   })
+})
+
+const lineMaterial = new THREE.LineBasicMaterial({
+  color: data.scene.accentColor,
+  transparent: true,
+  opacity: 0.3,
 })
 
 onLoop(({ elapsed }) => {
@@ -68,19 +77,8 @@ onLoop(({ elapsed }) => {
     <TresLine
       v-for="(_, i) in data.experience"
       :key="'line-' + i"
-    >
-      <TresBufferGeometry>
-        <TresBufferAttribute
-          attach="attributes-position"
-          :array="lineArrays[i]"
-          :item-size="3"
-        />
-      </TresBufferGeometry>
-      <TresLineBasicMaterial
-        :color="data.scene.accentColor"
-        :transparent="true"
-        :opacity="0.3"
-      />
-    </TresLine>
+      :geometry="lineGeometries[i]"
+      :material="lineMaterial"
+    />
   </TresGroup>
 </template>

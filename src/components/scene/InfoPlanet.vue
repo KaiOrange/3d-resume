@@ -46,9 +46,9 @@ function onPointerLeave() {
       <TresMeshStandardMaterial
         :color="data.scene.accentColor"
         :emissive="data.scene.accentColor"
-        :emissive-intensity="0.3"
-        :roughness="0.4"
-        :metalness="0.6"
+        :emissive-intensity="0.8"
+        :roughness="0.3"
+        :metalness="0.7"
       />
     </TresMesh>
 

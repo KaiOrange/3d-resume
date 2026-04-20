@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { watch, onMounted } from 'vue'
 import { useRenderLoop, useTresContext } from '@tresjs/core'
 import * as THREE from 'three'
 
@@ -19,6 +19,12 @@ const startPos = new THREE.Vector3(0, 5, 20)
 let progress = 0
 const duration = 1.5
 
+onMounted(() => {
+  if (!camera.value) {
+    console.warn('Camera not available in CameraFlyIn')
+  }
+})
+
 onLoop(({ delta }) => {
   if (!props.active || !camera.value) return
 
@@ -29,8 +35,11 @@ onLoop(({ delta }) => {
   }
 
   const t = easeInOutCubic(progress)
-  camera.value.position.lerpVectors(startPos, props.target, t)
-  camera.value.lookAt(0, 0, 0)
+  const cam = camera.value
+  if (cam && cam.position && cam.lookAt) {
+    cam.position.lerpVectors(startPos, props.target, t)
+    cam.lookAt(0, 0, 0)
+  }
 })
 
 function easeInOutCubic(t: number): number {
@@ -40,7 +49,7 @@ function easeInOutCubic(t: number): number {
 watch(() => props.active, (active) => {
   if (active) {
     progress = 0
-    if (camera.value) {
+    if (camera.value?.position) {
       startPos.copy(camera.value.position)
     }
   }
