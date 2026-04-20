@@ -1,0 +1,10 @@
+import { Color } from 'three';
+import { TresColor, VectorFlexibleParams } from '@tresjs/core';
+export type Gradient<T> = T | T[] | NormalizedGradient<T>;
+export type NormalizedGradient<T> = [number, T][];
+export type GradientTresColor = Gradient<TresColor>;
+export type GradientScalar = Gradient<number>;
+export type GradientVectorFlexibleParams = Gradient<VectorFlexibleParams>;
+export declare function normalizeColorGradient(gradient: GradientTresColor): NormalizedGradient<Color>;
+export declare function normalizeFlexibleVector3Gradient(gradient: GradientVectorFlexibleParams): NormalizedGradient<number[]>;
+export declare function normalizeScalarGradient(gradient: GradientScalar): NormalizedGradient<number>;

@@ -1,0 +1,16 @@
+:root {
+  --theme-bg: #0a0e27;
+  --accent: #00d4ff;
+  --nebula: #7b2fff;
+  --text: #e0e6ff;
+  --text-dim: #6b7db3;
+  --panel-bg: rgba(10, 14, 39, 0.85);
+  --panel-border: rgba(0, 212, 255, 0.3);
+}
+
+body {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  background: var(--theme-bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
