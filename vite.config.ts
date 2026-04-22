@@ -1,13 +1,12 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { templateCompilerOptions } from '@tresjs/core'
+import glsl from 'vite-plugin-glsl'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
   plugins: [
-    vue({
-      ...templateCompilerOptions,
-    }),
+    vue(),
+    glsl(),
   ],
   resolve: {
     alias: {

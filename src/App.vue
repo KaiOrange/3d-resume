@@ -1,57 +1,106 @@
 <script setup lang="ts">
-import { ref, provide } from 'vue'
-import UniverseScene from '@/components/scene/UniverseScene.vue'
-import LabelsOverlay from '@/components/scene/LabelsOverlay.vue'
-import InfoPanel from '@/components/ui/InfoPanel.vue'
-import IntroOverlay from '@/components/ui/IntroOverlay.vue'
-import Navigation from '@/components/ui/Navigation.vue'
-import MobileControls from '@/components/ui/MobileControls.vue'
-import { useInteraction } from '@/composables/useInteraction'
-import { useResumeData } from '@/composables/useResumeData'
-import { useCameraAnimation } from '@/composables/useCameraAnimation'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { Game } from './Game'
+import IntroOverlay from './components/ui/IntroOverlay.vue'
+import MobileControls from './components/ui/MobileControls.vue'
 
-const interaction = useInteraction()
-const { data } = useResumeData()
-const introComplete = ref(false)
-const cameraAnimation = useCameraAnimation()
+const containerRef = ref<HTMLElement>()
+const showIntro = ref(true)
+const isLoading = ref(false)
+const isReady = ref(false)
+const isMobile = ref(false)
+const introCompleteCalled = ref(false)
+let game: Game | null = null
 
-provide('interaction', interaction)
-provide('resumeData', data)
-provide('cameraAnimation', cameraAnimation)
+onMounted(async () => {
+  isMobile.value = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
-function handleSectionClick(section: 'planet' | 'asteroids' | 'stars') {
-  const targetMap = {
-    planet: 'planet' as const,
-    asteroids: 'asteroids' as const,
-    stars: 'stars' as const,
+  if (containerRef.value) {
+    game = new Game(containerRef.value)
+    isLoading.value = true
+    await game.create()
+    game.start()
+    isLoading.value = false
+    isReady.value = true
   }
-  cameraAnimation.animateTo(targetMap[section])
-  if (section === 'planet') {
-    interaction.select({ type: 'planet', index: 0, data: data.profile })
-  } else if (section === 'asteroids') {
-    interaction.select({ type: 'asteroid', index: 0, data: data.experience[0] })
-  } else if (section === 'stars') {
-    interaction.select({ type: 'star', index: 0, data: data.projects[0] })
+})
+
+function onIntroComplete() {
+  // Guard: only allow intro complete to be called once
+  if (introCompleteCalled.value) return
+  introCompleteCalled.value = true
+
+  showIntro.value = false
+  if (game) {
+    // Wait for textures if still loading, otherwise proceed immediately
+    if (isReady.value) {
+      game.setIntroComplete()
+    } else {
+      // Textures still loading, wait for them
+      const checkReady = setInterval(() => {
+        if (isReady.value) {
+          clearInterval(checkReady)
+          game?.setIntroComplete()
+        }
+      }, 50)
+    }
   }
 }
+
+// Mobile controls handlers
+function onMove(direction: { x: number; z: number }) {
+  if (game) {
+    game.setMobileMove(direction)
+  }
+}
+
+function onJump() {
+  if (game) {
+    game.setMobileJump(true)
+    setTimeout(() => game?.setMobileJump(false), 100)
+  }
+}
+
+function onAttack() {
+  if (game) {
+    game.setMobileAttack(true)
+    setTimeout(() => game?.setMobileAttack(false), 100)
+  }
+}
+
+function onLook(delta: { x: number; y: number }) {
+  if (game) {
+    game.addMouseLook(delta)
+  }
+}
+
+onUnmounted(() => {
+  if (game) {
+    game.dispose()
+  }
+})
 </script>
 
 <template>
-  <div id="cosmic-resume">
-    <IntroOverlay v-if="!introComplete" @complete="introComplete = true" />
-    <UniverseScene v-show="introComplete" />
-    <LabelsOverlay v-show="introComplete" />
-    <Navigation v-if="introComplete" @navigate="handleSectionClick" />
-    <MobileControls v-if="introComplete" @navigate="handleSectionClick" />
-    <InfoPanel :item="interaction.selected.value" @close="interaction.clearSelection()" />
+  <div class="app-container">
+    <IntroOverlay v-if="showIntro" @complete="onIntroComplete" />
+    <div ref="containerRef" class="game-container"></div>
+    <MobileControls v-if="!showIntro && isMobile" @move="onMove" @jump="onJump" @attack="onAttack" @look="onLook" />
   </div>
 </template>
 
 <style scoped>
-#cosmic-resume {
+.app-container {
   width: 100vw;
   height: 100vh;
-  position: relative;
   overflow: hidden;
+  position: relative;
+}
+
+.game-container {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
 }
 </style>

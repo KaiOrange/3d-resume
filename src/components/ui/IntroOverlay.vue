@@ -1,21 +1,20 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useResumeData } from '@/composables/useResumeData'
+import { resumeData } from '@/data/resumeData'
 
 const emit = defineEmits<{
   complete: []
 }>()
 
-const { data } = useResumeData()
-const phase = ref<'title' | 'tunnel' | 'reveal' | 'hidden'>('title')
-const showSkip = ref(true)
+const profile = resumeData.profile
+const phase = ref<'title' | 'hidden'>('title')
+const emitCalled = ref(false)
 const canvasRef = ref<HTMLCanvasElement>()
 
 let animationId: number
 let ctx: CanvasRenderingContext2D
 const stars: Star[] = []
-const STAR_COUNT = 200
-const SPEED = 8
+const STAR_COUNT = 250
 
 interface Star {
   x: number
@@ -35,12 +34,10 @@ onMounted(() => {
 
   initStars()
 
-  setTimeout(() => { phase.value = 'tunnel' }, 1500)
-  setTimeout(() => { phase.value = 'reveal' }, 4500)
+  // Extended title phase - 5 seconds
   setTimeout(() => {
-    phase.value = 'hidden'
-    emit('complete')
-  }, 7000)
+    callComplete()
+  }, 5000)
 
   animate()
 })
@@ -119,6 +116,12 @@ function animate() {
 }
 
 function skip() {
+  callComplete()
+}
+
+function callComplete() {
+  if (emitCalled.value) return
+  emitCalled.value = true
   phase.value = 'hidden'
   emit('complete')
 }
@@ -129,25 +132,13 @@ function skip() {
     <div v-if="phase !== 'hidden'" class="intro-overlay">
       <canvas ref="canvasRef" class="star-canvas"></canvas>
 
-      <!-- Title text -->
-      <Transition name="slide-up">
-        <div v-if="phase === 'title'" class="title-container">
-          <div class="name-text">{{ data.profile.name }}</div>
-          <div class="title-label">我的简历</div>
-          <div class="subtitle-text">{{ data.profile.title }}</div>
-        </div>
-      </Transition>
+      <div class="title-container">
+        <div class="name-text">{{ profile.name }}</div>
+        <div class="title-label">我的世界</div>
+        <div class="subtitle-text">{{ profile.title }}</div>
+      </div>
 
-      <!-- Reveal hint -->
-      <Transition name="slide-up">
-        <div v-if="phase === 'reveal'" class="hint-container">
-          <div class="explore-ring"></div>
-          <p class="hint-text">点击探索我的宇宙</p>
-        </div>
-      </Transition>
-
-      <!-- Skip button -->
-      <button v-if="showSkip" class="skip-btn" @click="skip">跳过</button>
+      <button class="skip-btn" @click="skip">跳过</button>
     </div>
   </Transition>
 </template>
@@ -164,167 +155,76 @@ function skip() {
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: auto;
-  overflow: hidden;
 }
 
 .star-canvas {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
 }
 
 .title-container {
   text-align: center;
   z-index: 1;
-  position: relative;
 }
 
 .name-text {
   font-size: 4rem;
   font-weight: bold;
-  color: #fff;
+  color: var(--accent, #00d4ff);
   text-shadow:
     0 0 30px rgba(0, 212, 255, 0.8),
-    0 0 60px rgba(0, 212, 255, 0.5),
-    0 0 100px rgba(0, 212, 255, 0.3);
+    0 0 60px rgba(0, 212, 255, 0.4);
   letter-spacing: 0.1em;
   animation: glow-pulse 2s ease-in-out infinite;
 }
 
 .title-label {
   font-size: 1.2rem;
-  color: var(--accent);
-  letter-spacing: 0.5em;
-  text-transform: uppercase;
-  margin-top: 16px;
-  opacity: 0.9;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 0.5rem;
+  letter-spacing: 0.3em;
 }
 
 .subtitle-text {
-  font-size: 1.1rem;
-  color: var(--text-dim);
-  margin-top: 12px;
-  letter-spacing: 0.05em;
-}
-
-@media (max-width: 768px) {
-  .name-text {
-    font-size: 2.5rem;
-  }
-  .title-label {
-    font-size: 0.9rem;
-    letter-spacing: 0.3em;
-  }
-  .subtitle-text {
-    font-size: 0.9rem;
-  }
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 1rem;
 }
 
 @keyframes glow-pulse {
-  0%, 100% {
-    text-shadow:
-      0 0 30px rgba(0, 212, 255, 0.8),
-      0 0 60px rgba(0, 212, 255, 0.5),
-      0 0 100px rgba(0, 212, 255, 0.3);
-  }
-  50% {
-    text-shadow:
-      0 0 40px rgba(0, 212, 255, 1),
-      0 0 80px rgba(0, 212, 255, 0.7),
-      0 0 120px rgba(0, 212, 255, 0.5);
-  }
-}
-
-.hint-container {
-  text-align: center;
-  z-index: 1;
-  position: relative;
-}
-
-.explore-ring {
-  width: 120px;
-  height: 120px;
-  border: 2px solid var(--accent);
-  border-radius: 50%;
-  margin: 0 auto 24px;
-  animation: ring-expand 2s ease-out infinite;
-  box-shadow:
-    0 0 20px rgba(0, 212, 255, 0.4),
-    inset 0 0 20px rgba(0, 212, 255, 0.1);
-}
-
-@keyframes ring-expand {
-  0% {
-    transform: scale(0.8);
-    opacity: 1;
-    box-shadow:
-      0 0 20px rgba(0, 212, 255, 0.4),
-      inset 0 0 20px rgba(0, 212, 255, 0.1);
-  }
-  100% {
-    transform: scale(1.3);
-    opacity: 0;
-    box-shadow:
-      0 0 40px rgba(0, 212, 255, 0),
-      inset 0 0 40px rgba(0, 212, 255, 0);
-  }
-}
-
-.hint-text {
-  font-size: 1rem;
-  color: var(--text);
-  opacity: 0.9;
-  animation: fade-in-out 2s ease-in-out infinite;
-  letter-spacing: 0.1em;
-}
-
-@keyframes fade-in-out {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  0%, 100% { text-shadow: 0 0 30px rgba(0, 212, 255, 0.8), 0 0 60px rgba(0, 212, 255, 0.4); }
+  50% { text-shadow: 0 0 50px rgba(0, 212, 255, 1), 0 0 100px rgba(0, 212, 255, 0.6); }
 }
 
 .skip-btn {
   position: absolute;
   top: 24px;
   right: 24px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: var(--text-dim);
-  padding: 10px 24px;
-  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.7);
+  padding: 8px 20px;
+  border-radius: 20px;
   cursor: pointer;
   font-size: 0.85rem;
   backdrop-filter: blur(10px);
   transition: all 0.3s;
   z-index: 10;
-  letter-spacing: 0.05em;
 }
 
 .skip-btn:hover {
   background: rgba(0, 212, 255, 0.15);
-  border-color: rgba(0, 212, 255, 0.5);
-  color: var(--accent);
-  box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+  border-color: #00d4ff;
+  color: #00d4ff;
 }
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.8s ease;
+  transition: opacity 1s ease;
 }
 
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
-}
-
-.slide-up-enter-active {
-  transition: all 0.6s ease;
-}
-
-.slide-up-enter-from {
-  opacity: 0;
-  transform: translateY(30px);
 }
 </style>

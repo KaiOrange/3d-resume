@@ -22,7 +22,14 @@
       "Bash(npm list *)",
       "Bash(npx playwright *)",
       "Bash(taskkill /F /IM node.exe)",
-      "Bash(powershell -Command \"Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force\")"
+      "Bash(powershell -Command \"Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(curl -s http://localhost:5177/)",
+      "Bash(npx tsc *)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \"LISTENING\")",
+      "Bash(findstr \"518\")",
+      "Bash(curl -s http://localhost:5181/)",
+      "Bash(xxd)"
     ]
   }
 }
