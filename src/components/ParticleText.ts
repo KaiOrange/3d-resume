@@ -9,9 +9,11 @@ interface Particle {
   size: number
   isGathered: boolean
   gatherProgress: number
+  oscillationOffset: number
+  oscillationPhase: number
 }
 
-const PARTICLE_COUNT = 2000
+const PARTICLE_COUNT = 3000 // Doubled for more particles
 const GATHER_DURATION = 0.8
 const SCATTER_DURATION = 0.8
 
@@ -29,6 +31,7 @@ export class ParticleText {
   private gatherStartTime = 0
   private scatterStartTime = 0
   private textTargetPositions: THREE.Vector3[] = []
+  private clock: THREE.Clock
 
   private goldColor = new THREE.Color('#ffd700')
   private whiteColor = new THREE.Color('#ffffff')
@@ -36,12 +39,13 @@ export class ParticleText {
   private nebulaColor = new THREE.Color('#7b2fff')
 
   constructor(scene: THREE.Scene) {
+    this.clock = new THREE.Clock()
     this.positions = new Float32Array(PARTICLE_COUNT * 3)
     this.colors = new Float32Array(PARTICLE_COUNT * 3)
 
     this.geometry = new THREE.BufferGeometry()
     this.material = new THREE.PointsMaterial({
-      size: 0.15,
+      size: 0.25, // Smaller particles
       vertexColors: true,
       transparent: true,
       opacity: 1,
@@ -60,18 +64,20 @@ export class ParticleText {
   private initParticles() {
     this.particles = []
     for (let i = 0; i < PARTICLE_COUNT; i++) {
+      // Spread particles like stars in the sky - high up and far out
+      const angle = Math.random() * Math.PI * 2
+      const radius = 20 + Math.random() * 50 // 20-70 units from center
       const pos = new THREE.Vector3(
-        (Math.random() - 0.5) * 50,
-        Math.random() * 20 + 5,
-        (Math.random() - 0.5) * 50
+        Math.cos(angle) * radius,
+        Math.random() * 30 + 10, // 15-45 units high - like stars
+        Math.sin(angle) * radius
       )
 
-      const colorChoice = Math.random()
-      const color = colorChoice < 0.4
-        ? this.whiteColor.clone()
-        : colorChoice < 0.7
-          ? this.accentColor.clone()
-          : this.nebulaColor.clone()
+      // HSL colorful stars - varied hues across the spectrum
+      const hue = Math.random()
+      const saturation = 0.6 + Math.random() * 0.4 // 0.6-1.0
+      const lightness = 0.5 + Math.random() * 0.3 // 0.5-0.8
+      const color = new THREE.Color().setHSL(hue, saturation, lightness)
 
       this.particles.push({
         position: pos.clone(),
@@ -82,6 +88,8 @@ export class ParticleText {
         size: 0.05 + Math.random() * 0.1,
         isGathered: false,
         gatherProgress: 0,
+        oscillationOffset: Math.random() * Math.PI * 2,
+        oscillationPhase: Math.random() * Math.PI * 2,
       })
 
       const i3 = i * 3
@@ -108,9 +116,31 @@ export class ParticleText {
       this.updateGathering(elapsed)
     } else if (this.isScattering) {
       this.updateScattering(elapsed)
+    } else if (this.isShowingText) {
+      this.updateOscillation()
     }
 
     this.updateBuffers()
+  }
+
+  private updateOscillation() {
+    const time = this.clock.getElapsedTime()
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const p = this.particles[i]
+      if (p.targetPos && p.isGathered) {
+        // Simple harmonic oscillation - small amplitude so text stays readable
+        const ampX = 0.08
+        const ampY = 0.12
+        const ampZ = 0.06
+        const freq = 1.5
+
+        const offset = time * freq + p.oscillationOffset
+        p.position.x = p.targetPos.x + Math.sin(offset) * ampX
+        p.position.y = p.targetPos.y + Math.sin(offset * 1.3 + p.oscillationPhase) * ampY
+        p.position.z = p.targetPos.z + Math.cos(offset * 0.8) * ampZ
+      }
+    }
   }
 
   private updateGathering(currentTime: number) {
@@ -121,6 +151,7 @@ export class ParticleText {
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       const p = this.particles[i]
 
+      // Only particles within textTargetPositions count
       if (i < this.textTargetPositions.length && this.textTargetPositions[i]) {
         if (!p.isGathered) {
           p.isGathered = true
@@ -131,62 +162,36 @@ export class ParticleText {
         if (p.targetPos) {
           p.position.lerpVectors(p.startPos, p.targetPos, t)
         }
-
-        // Color: gold to white
-        if (progress < 0.5) {
-          p.color.lerpColors(p.originalColor, this.goldColor, progress * 2)
-        } else {
-          p.color.lerpColors(this.goldColor, this.whiteColor, (progress - 0.5) * 2)
-        }
-      } else if (p.targetPos) {
-        // Particles not in text - scatter near center
-        const center = new THREE.Vector3(0, 8, 0)
-        const randomOffset = center.clone().add(new THREE.Vector3(
-          (Math.random() - 0.5) * 10,
-          (Math.random() - 0.5) * 5,
-          (Math.random() - 0.5) * 10
-        ))
-        p.position.lerpVectors(p.position, randomOffset, t * 0.2)
+        // Keep original color - no color transition during gathering
+      } else {
+        // Particles not in text - drift randomly (don't gather)
+        p.isGathered = false
+        p.targetPos = null
       }
     }
 
     if (progress >= 1) {
       this.isGathering = false
       this.isShowingText = true
-      for (let i = 0; i < PARTICLE_COUNT; i++) {
-        const p = this.particles[i]
-        if (p.targetPos) {
-          p.position.copy(p.targetPos)
-        }
-      }
     }
   }
 
   private updateScattering(currentTime: number) {
     const elapsed = currentTime - this.scatterStartTime
     const progress = Math.min(elapsed / SCATTER_DURATION, 1)
+    const t = this.easeOutCubic(progress)
 
     for (const p of this.particles) {
-      if (progress < 0.4 && p.isGathered) {
-        // Explosive scatter
-        const scatterDir = p.position.clone().normalize()
-        if (scatterDir.length() < 0.1) {
-          scatterDir.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize()
-        }
-        const scatterSpeed = (1 - progress / 0.4) * 30
-        p.position.add(scatterDir.multiplyScalar(scatterSpeed * 0.016))
+      if (p.isGathered && p.targetPos) {
+        // Return to original start position smoothly
+        p.position.lerpVectors(p.targetPos, p.startPos, t)
       }
 
-      // Color transition back
-      if (progress > 0.3) {
-        const colorT = (progress - 0.3) / 0.7
-        p.color.lerpColors(this.whiteColor, p.originalColor, colorT)
-      }
+                  // Keep original color during scatter
 
       if (progress >= 1) {
         p.isGathered = false
         p.targetPos = null
-        p.isGathered = false
       }
     }
 
@@ -221,73 +226,76 @@ export class ParticleText {
     const ctx = canvas.getContext('2d')!
     const lineCount = lines.length
 
-    const baseFontSize = lineCount <= 2 ? 90 : lineCount <= 3 ? 70 : lineCount <= 4 ? 55 : 45
-    const lineHeight = baseFontSize * 1.4
+    // Smaller font size for appropriate world scale
+    const baseFontSize = 60
+    const lineHeight = baseFontSize * 0.8
 
-    canvas.width = 1400
-    canvas.height = lineCount * lineHeight + 60
+    canvas.width = 1024
+    canvas.height = lineCount * lineHeight + 50
 
+    // Clear with black
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
+    // Draw white text with letter spacing
     ctx.fillStyle = '#ffffff'
     ctx.font = `bold ${baseFontSize}px Microsoft YaHei, Arial, sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    lines.forEach((line, index) => {
-      const y = canvas.height / 2 + (index - (lines.length - 1) / 2) * lineHeight
-      ctx.fillText(line, canvas.width / 2, y)
-    })
+    const textY = canvas.height / 2
+    const line = lines[0]
+    const charCount = line.length
+    const letterSpacing = baseFontSize * 0.3
+
+    // Calculate total text width for centering
+    let totalTextWidth = 0
+    for (let i = 0; i < charCount; i++) {
+      totalTextWidth += ctx.measureText(line[i]).width
+      if (i < charCount - 1) totalTextWidth += letterSpacing
+    }
+
+    // Draw each character centered
+    let currentX = (canvas.width - totalTextWidth) / 2
+    for (let i = 0; i < charCount; i++) {
+      const charWidth = ctx.measureText(line[i]).width
+      ctx.fillText(line[i], currentX + charWidth / 2, textY)
+      currentX += charWidth + letterSpacing
+    }
 
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
     const pixels = imageData.data
     this.textTargetPositions = []
 
-    const sampleStep = 3
+    // World scale - X wider, Y smaller
+    const worldScaleX = 1.5
+    const worldScaleY = 0.45
+    const textWidthWorld = totalTextWidth * worldScaleX
+    const textHeightWorld = canvas.height * worldScaleY
+
+    const sampleStep = 2
     for (let y = 0; y < canvas.height; y += sampleStep) {
       for (let x = 0; x < canvas.width; x += sampleStep) {
         const i = (y * canvas.width + x) * 4
         if (pixels[i] > 200) {
-          const worldX = ((x / canvas.width) - 0.5) * 25
-          const worldY = -((y / canvas.height) - 0.5) * (lineCount * 3 + 3)
+          // Map canvas coords to world coords - properly centered (flipped X for mirror)
+          const worldX = -((x - canvas.width / 2) / canvas.width) * textWidthWorld
+          const worldY = -((y - canvas.height / 2) / canvas.height) * textHeightWorld
+
+          // Small random jitter for organic look
+          const jitterX = (Math.random() - 0.5) * 0.8
+          const jitterY = (Math.random() - 0.5) * 0.5
+
           this.textTargetPositions.push(new THREE.Vector3(
-            centerPos.x + worldX,
-            centerPos.y + worldY,
+            centerPos.x + worldX + jitterX,
+            centerPos.y + worldY + jitterY,
             centerPos.z
           ))
         }
       }
     }
 
-    // Fallback if no text found
-    if (this.textTargetPositions.length < 50) {
-      lines.forEach((line, lineIdx) => {
-        for (let charIdx = 0; charIdx < line.length; charIdx++) {
-          this.textTargetPositions.push(new THREE.Vector3(
-            centerPos.x + (charIdx - line.length / 2) * 1.5,
-            centerPos.y + (lineIdx - lines.length / 2) * 3,
-            centerPos.z
-          ))
-        }
-      })
-    }
-
-    // Fill remaining particles
-    const avgX = this.textTargetPositions.reduce((sum, p) => sum + p.x, 0) / Math.max(this.textTargetPositions.length, 1)
-    const avgY = this.textTargetPositions.reduce((sum, p) => sum + p.y, 0) / Math.max(this.textTargetPositions.length, 1)
-    const avgZ = this.textTargetPositions.reduce((sum, p) => sum + p.z, 0) / Math.max(this.textTargetPositions.length, 1)
-    const center = new THREE.Vector3(avgX, avgY, avgZ)
-
-    while (this.textTargetPositions.length < PARTICLE_COUNT) {
-      this.textTargetPositions.push(center.clone().add(new THREE.Vector3(
-        (Math.random() - 0.5) * 20,
-        (Math.random() - 0.5) * (lineCount * 3),
-        (Math.random() - 0.5) * 20
-      )))
-    }
-
-    this.textTargetPositions = this.textTargetPositions.slice(0, PARTICLE_COUNT)
+    console.log('Generated text positions:', this.textTargetPositions.length)
   }
 
   public gatherLines(lines: string[], targetPosition: THREE.Vector3) {
@@ -303,10 +311,10 @@ export class ParticleText {
       p.targetPos = null
     }
 
-    // Position text floating in air above the target position
+    // Position text at sky level, very far from platform - centered on target
     const textPos = targetPosition.clone()
-    textPos.y += 12  // Float higher in the air
-    textPos.z += 8   // Move forward
+    textPos.y += 12  // In the sky
+    textPos.z += 50 // Very very far ahead
 
     this.generateTextPositions(lines, textPos)
   }

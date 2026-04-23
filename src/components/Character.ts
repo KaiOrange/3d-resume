@@ -22,8 +22,6 @@ export class Character {
   private groundY = 1.0
 
   // Robot rotation around Y axis (controlled by mouse X)
-  // rotationY = 0: robot faces +Z (toward camera)
-  // rotationY = Math.PI: robot faces -Z (away from camera = back view)
   private rotationY = Math.PI
 
   // Animation
@@ -31,10 +29,13 @@ export class Character {
   private animations: { [name: string]: THREE.AnimationClip } = {}
   private currentAction: THREE.AnimationAction | null = null
   private punchAction: THREE.AnimationAction | null = null
+  private thumbsUpAction: THREE.AnimationAction | null = null
   private model: THREE.Object3D | null = null
   private animationLoaded = false
   private attackCooldown = 0
-  private isAttacking = false // Track if we're in attack animation
+  private inAttackAnimation = false
+  private inThumbsUpAnimation = false
+  private wasOnZone = false
 
   constructor(scene: THREE.Scene, world: CANNON.World, spawnPoint: THREE.Vector3) {
     this.world = world
@@ -59,16 +60,24 @@ export class Character {
       this.playAnimation('Idle')
     })
 
-    const bodyShape = new CANNON.Cylinder(0.4, 0.4, 2.2, 8)
+    const bodyShape = new CANNON.Cylinder(0.4, 0.4, 2.0, 8) // Cylinder matching visual
     const charMaterial = new CANNON.Material('character')
+
+    // Create contact material for better collision response
+    const iceMaterial = new CANNON.Material('ice')
+    const charIceContact = new CANNON.ContactMaterial(charMaterial, iceMaterial, {
+      friction: 0.5,
+      restitution: 0.0,
+    })
+    this.world.addContactMaterial(charIceContact)
 
     this.body = new CANNON.Body({
       mass: 20,
       material: charMaterial,
-      linearDamping: 0.4,
-      angularDamping: 0.99,
+      linearDamping: 0.3,
+      angularDamping: 0.99, // Prevent rotation from collisions
     })
-    this.body.addShape(bodyShape, new CANNON.Vec3(0, 1.1, 0))
+    this.body.addShape(bodyShape, new CANNON.Vec3(0, 1.0, 0))
     this.body.position.set(spawnPoint.x, spawnPoint.y, spawnPoint.z)
     this.body.angularFactor = new CANNON.Vec3(0, 1, 0)
 
@@ -94,8 +103,8 @@ export class Character {
 
     newAction.reset().fadeIn(fadeTime).play()
 
-    // Only Punch animation plays once, others loop
-    if (name === 'Punch') {
+    // Only Punch/ThumbsUp animations play once, others loop
+    if (name === 'Punch' || name === 'ThumbsUp') {
       newAction.setLoop(THREE.LoopOnce, 1)
       newAction.clampWhenFinished = true
     } else {
@@ -104,10 +113,27 @@ export class Character {
 
     this.currentAction = newAction
 
-    // Save reference to punch action
     if (name === 'Punch') {
       this.punchAction = newAction
     }
+    if (name === 'ThumbsUp') {
+      this.thumbsUpAction = newAction
+    }
+  }
+
+  // Called when robot enters/leaves zone
+  public setOnZone(isOnZone: boolean) {
+    if (isOnZone && !this.wasOnZone) {
+      // Just entered zone - trigger thumbs up if not already in special animation
+      if (this.animationLoaded && !this.inAttackAnimation && !this.inThumbsUpAnimation) {
+        this.playAnimation('ThumbsUp')
+        this.inThumbsUpAnimation = true
+      }
+    } else if (!isOnZone && this.wasOnZone) {
+      // Just left zone
+      this.inThumbsUpAnimation = false
+    }
+    this.wasOnZone = isOnZone
   }
 
   public update(delta: number, input: CharacterInput, platform: Platform) {
@@ -122,37 +148,43 @@ export class Character {
       this.attackCooldown -= clampedDelta
     }
 
-    // Apply platform level constraint FIRST to ensure consistent physics state
+    // Apply platform level constraint FIRST
     const platformLevel = 0.5
     if (this.body.position.y < platformLevel) {
       this.body.position.y = platformLevel
       this.body.velocity.y = 0
-      // Wake up body when landing
       this.body.wakeUp()
     }
 
     const charY = this.body.position.y
     const verticalVelocity = this.body.velocity.y
-    // isGrounded when character is at platform level and mostly settled
-    // Small velocity tolerance handles physics jitter during landing
     this.isGrounded = charY < 2.0 && Math.abs(verticalVelocity) < 2
 
     const isMoving = input.forward || input.backward || input.left || input.right
 
-    // Handle attack input - only trigger on new press, not while held
-    if (input.attack && this.attackCooldown <= 0 && !this.isAttacking) {
+    // Handle attack input
+    if (input.attack && this.attackCooldown <= 0 && !this.inAttackAnimation) {
       this.playAnimation('Punch')
       this.attackCooldown = 1.0
-      this.isAttacking = true
+      this.inAttackAnimation = true
     }
 
     // Check if punch animation finished
-    if (this.isAttacking && this.punchAction && !this.punchAction.isRunning()) {
-      this.isAttacking = false
+    if (this.inAttackAnimation && this.punchAction && !this.punchAction.isRunning()) {
+      this.inAttackAnimation = false
     }
 
-    // Animation state machine - don't interrupt attack
-    if (this.animationLoaded && !this.isAttacking) {
+    // Check if thumbs up animation finished
+    if (this.inThumbsUpAnimation && this.thumbsUpAction && !this.thumbsUpAction.isRunning()) {
+      this.inThumbsUpAnimation = false
+      // Return to idle after thumbs up
+      if (this.animationLoaded && this.isGrounded && !isMoving) {
+        this.playAnimation('Idle')
+      }
+    }
+
+    // Animation state machine - don't interrupt attack or thumbs up
+    if (this.animationLoaded && !this.inAttackAnimation && !this.inThumbsUpAnimation) {
       if (!this.isGrounded) {
         this.playAnimation(isMoving ? 'WalkJump' : 'Jump')
       } else if (isMoving) {
@@ -172,9 +204,6 @@ export class Character {
     if (moveDirection.length() > 0) {
       moveDirection.normalize()
 
-      // Movement only based on yaw (horizontal rotation), pitch doesn't affect movement
-      // forward: rotationY=0 faces +Z, rotationY=PI faces -Z
-      // right: perpendicular to forward
       const forward = new THREE.Vector3(Math.sin(this.rotationY), 0, Math.cos(this.rotationY))
       const right = new THREE.Vector3(-Math.cos(this.rotationY), 0, Math.sin(this.rotationY))
 
@@ -206,21 +235,21 @@ export class Character {
       this.body.position.z
     )
 
-    // Mesh rotation tracks rotationY
     this.mesh.rotation.y = this.rotationY
     this.body.quaternion.setFromEuler(0, this.rotationY, 0)
 
-    const halfSize = platform.getSize() / 2 - 1
-    this.body.position.x = THREE.MathUtils.clamp(this.body.position.x, -halfSize, halfSize)
-    this.body.position.z = THREE.MathUtils.clamp(this.body.position.z, -halfSize, halfSize)
+    // Keep character within platform bounds (but don't override physics if colliding)
+    const halfSize = platform.getSize() / 2 - 2
+    if (this.body.position.y > 0) { // Only clamp if not fallen
+      this.body.position.x = THREE.MathUtils.clamp(this.body.position.x, -halfSize, halfSize)
+      this.body.position.z = THREE.MathUtils.clamp(this.body.position.z, -halfSize, halfSize)
+    }
   }
 
-  // Rotate robot based on mouse delta
   public rotate(delta: number) {
     this.rotationY -= delta
   }
 
-  // Set robot rotation directly from yaw
   public setRotationY(yaw: number) {
     this.rotationY = yaw
   }
@@ -233,12 +262,26 @@ export class Character {
     return this.rotationY
   }
 
-  // Returns the direction robot is facing
   public getForwardDirection(): THREE.Vector3 {
     return new THREE.Vector3(
       Math.sin(this.rotationY),
       0,
       Math.cos(this.rotationY)
     )
+  }
+
+  public isAttacking(): boolean {
+    return this.inAttackAnimation
+  }
+
+  public needsReset(): boolean {
+    return this.body.position.y < -20
+  }
+
+  public resetToPosition(position: THREE.Vector3) {
+    this.body.position.set(position.x, position.y, position.z)
+    this.body.velocity.set(0, 0, 0)
+    this.body.angularVelocity.set(0, 0, 0)
+    this.body.wakeUp()
   }
 }

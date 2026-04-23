@@ -98,7 +98,13 @@ export class Platform {
   }
 
   private createPlatformObjects() {
-    // Cubes - more spread out for larger platform
+    // Load wood texture
+    const textureLoader = new THREE.TextureLoader()
+    const woodTexture = textureLoader.load('/textures/wood.jpg')
+    woodTexture.wrapS = THREE.RepeatWrapping
+    woodTexture.wrapT = THREE.RepeatWrapping
+
+    // Cubes - some with wood, some with cyan glow
     const cubePositions = [
       new THREE.Vector3(-15, 1.5, -15),
       new THREE.Vector3(12, 1.5, 10),
@@ -106,26 +112,41 @@ export class Platform {
       new THREE.Vector3(18, 1, -8),
     ]
 
-    cubePositions.forEach(pos => {
+    cubePositions.forEach((pos, idx) => {
       const cubeGeom = new THREE.BoxGeometry(2, 2, 2)
-      const cubeMat = new THREE.MeshStandardMaterial({
-        color: 0x00d4ff,
-        emissive: 0x00d4ff,
-        emissiveIntensity: 0.2,
-        roughness: 0.3,
-        metalness: 0.7,
-      })
+      let cubeMat: THREE.Material
+
+      if (idx === 0 || idx === 2) {
+        // Wood texture for some cubes
+        cubeMat = new THREE.MeshStandardMaterial({
+          map: woodTexture,
+          roughness: 0.7,
+          metalness: 0.1,
+        })
+      } else {
+        // Cyan glowing cubes
+        cubeMat = new THREE.MeshStandardMaterial({
+          color: 0x00d4ff,
+          emissive: 0x00d4ff,
+          emissiveIntensity: 0.2,
+          roughness: 0.3,
+          metalness: 0.7,
+        })
+      }
+
       const cube = new THREE.Mesh(cubeGeom, cubeMat)
       cube.position.copy(pos)
       cube.castShadow = false
       cube.receiveShadow = false
       this.scene.add(cube)
 
-      // Physics
+      // Physics - lower mass so robot can push them
       const cubeShape = new CANNON.Box(new CANNON.Vec3(1, 1, 1))
-      const cubeBody = new CANNON.Body({ mass: 5, material: new CANNON.Material('ice') })
+      const cubeBody = new CANNON.Body({ mass: 2, material: new CANNON.Material('ice') })
       cubeBody.addShape(cubeShape)
       cubeBody.position.set(pos.x, pos.y, pos.z)
+      cubeBody.linearDamping = 0.5
+      cubeBody.angularDamping = 0.5
       this.world.addBody(cubeBody)
     })
 
@@ -151,11 +172,13 @@ export class Platform {
       cylinder.receiveShadow = false
       this.scene.add(cylinder)
 
-      // Physics
+      // Physics - lower mass, proper cylinder orientation
       const cylShape = new CANNON.Cylinder(1, 1, 3, 16)
-      const cylBody = new CANNON.Body({ mass: 3 })
+      const cylBody = new CANNON.Body({ mass: 2, material: new CANNON.Material('ice') })
       cylBody.addShape(cylShape)
       cylBody.position.set(pos.x, pos.y, pos.z)
+      cylBody.linearDamping = 0.5
+      cylBody.angularDamping = 0.5
       this.world.addBody(cylBody)
     })
 
@@ -189,7 +212,7 @@ export class Platform {
       // Physics - high friction and damping so sphere eventually stops
       const sphereShape = new CANNON.Sphere(1)
       const sphereBody = new CANNON.Body({
-        mass: 3,
+        mass: 2,
         material: sphereMaterial,
         linearDamping: 0.8,
         angularDamping: 0.9,

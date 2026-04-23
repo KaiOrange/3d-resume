@@ -29,7 +29,11 @@
       "Bash(findstr \"LISTENING\")",
       "Bash(findstr \"518\")",
       "Bash(curl -s http://localhost:5181/)",
-      "Bash(xxd)"
+      "Bash(xxd)",
+      "Bash(mkdir -p \"C:/Users/huangkai/.claude/skills/karpathy-guidelines\")",
+      "Bash(cp /tmp/karpathy-skills/skills/karpathy-guidelines/SKILL.md \"C:/Users/huangkai/.claude/skills/karpathy-guidelines/\")",
+      "Bash(mkdir -p C:/Users/huangkai/.claude/skills/__TRACKED_VAR__)",
+      "Bash(cp /tmp/skills-repo/skills/__TRACKED_VAR__/SKILL.md C:/Users/huangkai/.claude/skills/__TRACKED_VAR__/)"
     ]
   }
 }

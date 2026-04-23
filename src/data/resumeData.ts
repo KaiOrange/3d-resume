@@ -1,10 +1,9 @@
 export const resumeData = {
   profile: {
-    name: '张三',
+    name: '黄凯',
     title: 'DEMO',
-    email: 'zhangsan@example.com',
-    phone: '138-0000-0000',
-    location: '北京',
+    email: 'huangkaiking@126.com',
+    location: '西安',
   },
   experience: [
     {
@@ -35,4 +34,21 @@ export const resumeData = {
       description: '企业级数据可视化平台',
     },
   ],
+  contactInfos: [
+    {
+      name: '邮箱',
+      icon: '/images/envelope.png',
+      url: 'huangkaiking@126.com',
+    },
+    {
+      name: 'GitHub',
+      icon: '/images/githubLogo.png',
+      url: 'https://github.com/KaiOrange',
+    },
+    {
+      name: '博客',
+      icon: '/images/blog.png', 
+      url: 'https://www.kai666666.com/',
+    },
+  ]
 }

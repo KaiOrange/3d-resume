@@ -10,7 +10,11 @@ import { Earth } from './components/Earth'
 import { SunGlow } from './components/SunGlow'
 import { Nebula } from './components/Nebula'
 import { Sky } from './components/Sky'
-import { SpecialZones, ZoneData } from './components/SpecialZones'
+import { SpecialZones } from './components/SpecialZones'
+import { DestructibleBricks } from './components/DestructibleBricks'
+import { WindSpiral } from './components/WindSpiral'
+import { InfoBillboards } from './components/InfoBillboards'
+import { ContactBillboards } from './components/ContactBillboards'
 import { resumeData } from './data/resumeData'
 
 export class Game {
@@ -28,12 +32,16 @@ export class Game {
   private nebula!: Nebula
   private sky!: Sky
   private specialZones!: SpecialZones
+  private destructibleBricks!: DestructibleBricks
+  private windSpiral!: WindSpiral
+  private infoBillboards!: InfoBillboards
+  private contactBillboards!: ContactBillboards
 
   private clock: THREE.Clock
   private keys: { [key: string]: boolean } = {}
   private mouseLookDelta = { x: 0, y: 0 }
-  private mobileMove = { x: 0, z: 0 }
   private texturesLoaded = false
+  private wasOnZone = false
 
   constructor(container: HTMLElement) {
     this.clock = new THREE.Clock()
@@ -113,9 +121,34 @@ export class Game {
     this.particleText = new ParticleText(this.scene)
     this.particleText.create()
 
-    // Special Zones
+    // Special Zones (single circle at south edge)
     this.specialZones = new SpecialZones(this.scene, this.platform)
-    this.specialZones.create(resumeData)
+    this.specialZones.create()
+
+    // Wind Spiral for the main zone
+    this.windSpiral = new WindSpiral(this.scene)
+    this.windSpiral.createSpiralForZone(this.specialZones.getMainZonePosition(), '#00d4ff')
+
+    // Info Billboards with resume data
+    this.infoBillboards = new InfoBillboards(this.scene, this.platform.getSize())
+    this.infoBillboards.create()
+
+    // Contact Billboards with contact info
+    this.contactBillboards = new ContactBillboards(
+      this.scene,
+      this.physicsWorld.world,
+      this.platform.getSize()
+    )
+    this.contactBillboards.create(resumeData.contactInfos)
+
+    // Destructible Bricks - on the east side, away from other objects
+    const halfSize = this.platform.getSize() / 2
+    this.destructibleBricks = new DestructibleBricks(
+      this.scene,
+      this.physicsWorld.world,
+      new THREE.Vector3(10, 0, -10)
+    )
+    this.destructibleBricks.create()
 
     // Camera Controller
     this.cameraController = new CameraController(this.camera, this.character)
@@ -200,20 +233,46 @@ export class Game {
     // Update character
     this.character.update(delta, { forward, backward, left, right, jump, attack }, this.platform)
 
+    // Check if robot fell off platform - reset to center
+    if (this.character.needsReset()) {
+      this.character.resetToPosition(this.platform.getSpawnPoint())
+    }
+
     // Update particle text
     this.particleText.update(delta)
 
-    // Check special zones
+    // Check special zone - show profile name when on the circle
     const activeZone = this.specialZones.checkZone(this.character.getPosition())
-    if (activeZone) {
-      if (!this.particleText.isActive()) {
-        this.particleText.gatherLines(activeZone.lines, activeZone.worldPosition)
+    const isOnZone = activeZone !== null
+
+    // Update character zone state for animation
+    this.character.setOnZone(isOnZone)
+
+    // Trigger zone effects
+    if (isOnZone) {
+      // Show name in sky when on the circle
+      if (!this.wasOnZone && !this.particleText.isActive()) {
+        this.particleText.gatherLines([resumeData.profile.name], this.specialZones.getMainZonePosition())
       }
+      this.wasOnZone = true
     } else {
-      if (this.particleText.hasTextVisible()) {
+      if (this.wasOnZone && this.particleText.hasTextVisible()) {
         this.particleText.scatter()
       }
+      this.wasOnZone = false
     }
+
+    // Update wind spiral effects
+    this.windSpiral.update(delta, this.character.getPosition(), attack, isOnZone)
+
+    // Update special zones visual effects
+    this.specialZones.update(delta)
+
+    // Update contact billboards
+    this.contactBillboards.update(delta, this.character.getPosition(), attack)
+
+    // Update destructible bricks (pass attack state)
+    this.destructibleBricks.update(delta, this.character.getPosition(), attack)
 
     // Update camera
     this.cameraController.update(delta)
@@ -230,6 +289,9 @@ export class Game {
     // Update nebula
     this.nebula.update(delta)
 
+    // Update info billboards
+    this.infoBillboards.update(delta, this.character.getPosition(), activeZone?.id || null)
+
     // Render
     this.renderer.render(this.scene, this.camera)
   }
@@ -239,7 +301,7 @@ export class Game {
   }
 
   public setMobileMove(direction: { x: number; z: number }) {
-    this.mobileMove = direction
+    // Mobile input handling
   }
 
   public setMobileJump(active: boolean) {
@@ -250,7 +312,7 @@ export class Game {
     this.keys['KeyJ'] = active
   }
 
-  public addMouseLook(delta: { x: number; y: number }) {
+  public addMouseLook(delta: { x: number, y: number }) {
     this.mouseLookDelta.x += delta.x
     this.mouseLookDelta.y += delta.y
   }
