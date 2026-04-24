@@ -9,14 +9,14 @@ const emit = defineEmits<{
 }>()
 
 const leftTouchId = ref<number | null>(null)
-const rightTouchId = ref<number | null>(null)
+const lookTouchId = ref<number | null>(null)
 const leftStartX = ref(0)
 const leftStartY = ref(0)
-const rightStartX = ref(0)
-const rightStartY = ref(0)
+const lookStartX = ref(0)
+const lookStartY = ref(0)
 
 const moveAreaRef = ref<HTMLDivElement>()
-const actionAreaRef = ref<HTMLDivElement>()
+const lookAreaRef = ref<HTMLDivElement>()
 
 function handleLeftTouchStart(e: TouchEvent) {
   const touch = e.touches[0]
@@ -59,39 +59,56 @@ function handleLeftTouchEnd(e: TouchEvent) {
   }
 }
 
-function handleRightTouchStart(e: TouchEvent) {
+// Look controls - works anywhere on the screen except on buttons
+function handleLookTouchStart(e: TouchEvent) {
+  // Ignore if touch started on move area (left bottom)
   const touch = e.touches[0]
-  rightTouchId.value = touch.identifier
-  rightStartX.value = touch.clientX
-  rightStartY.value = touch.clientY
+  const moveArea = moveAreaRef.value
+  if (moveArea) {
+    const rect = moveArea.getBoundingClientRect()
+    if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
+        touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+      return // Ignore touch on move area
+    }
+  }
+
+  // Ignore if touch started on buttons
+  const target = e.target as HTMLElement
+  if (target.closest('.action-btn')) {
+    return // Ignore touch on buttons
+  }
+
+  lookTouchId.value = touch.identifier
+  lookStartX.value = touch.clientX
+  lookStartY.value = touch.clientY
 }
 
-function handleRightTouchMove(e: TouchEvent) {
-  if (rightTouchId.value === null) return
+function handleLookTouchMove(e: TouchEvent) {
+  if (lookTouchId.value === null) return
 
   for (let i = 0; i < e.touches.length; i++) {
     const touch = e.touches[i]
-    if (touch.identifier === rightTouchId.value) {
-      const deltaX = touch.clientX - rightStartX.value
-      const deltaY = touch.clientY - rightStartY.value
+    if (touch.identifier === lookTouchId.value) {
+      const deltaX = touch.clientX - lookStartX.value
+      const deltaY = touch.clientY - lookStartY.value
 
       // Only emit look if moved beyond deadzone
       const deadzone = 5
       if (Math.abs(deltaX) > deadzone || Math.abs(deltaY) > deadzone) {
         emit('look', { x: deltaX * 0.01, y: deltaY * 0.01 })
-        rightStartX.value = touch.clientX
-        rightStartY.value = touch.clientY
+        lookStartX.value = touch.clientX
+        lookStartY.value = touch.clientY
       }
       break
     }
   }
 }
 
-function handleRightTouchEnd(e: TouchEvent) {
+function handleLookTouchEnd(e: TouchEvent) {
   for (let i = 0; i < e.changedTouches.length; i++) {
     const touch = e.changedTouches[i]
-    if (touch.identifier === rightTouchId.value) {
-      rightTouchId.value = null
+    if (touch.identifier === lookTouchId.value) {
+      lookTouchId.value = null
       break
     }
   }
@@ -107,7 +124,7 @@ function handleAttack() {
 
 onMounted(() => {
   const moveArea = moveAreaRef.value
-  const actionArea = actionAreaRef.value
+  const lookArea = lookAreaRef.value
 
   if (moveArea) {
     moveArea.addEventListener('touchstart', handleLeftTouchStart, { passive: false })
@@ -116,17 +133,18 @@ onMounted(() => {
     moveArea.addEventListener('touchcancel', handleLeftTouchEnd, { passive: false })
   }
 
-  if (actionArea) {
-    actionArea.addEventListener('touchstart', handleRightTouchStart, { passive: false })
-    actionArea.addEventListener('touchmove', handleRightTouchMove, { passive: false })
-    actionArea.addEventListener('touchend', handleRightTouchEnd, { passive: false })
-    actionArea.addEventListener('touchcancel', handleRightTouchEnd, { passive: false })
+  // Look area covers the entire screen (except move area and buttons)
+  if (lookArea) {
+    lookArea.addEventListener('touchstart', handleLookTouchStart, { passive: false })
+    lookArea.addEventListener('touchmove', handleLookTouchMove, { passive: false })
+    lookArea.addEventListener('touchend', handleLookTouchEnd, { passive: false })
+    lookArea.addEventListener('touchcancel', handleLookTouchEnd, { passive: false })
   }
 })
 
 onUnmounted(() => {
   const moveArea = moveAreaRef.value
-  const actionArea = actionAreaRef.value
+  const lookArea = lookAreaRef.value
 
   if (moveArea) {
     moveArea.removeEventListener('touchstart', handleLeftTouchStart)
@@ -135,17 +153,20 @@ onUnmounted(() => {
     moveArea.removeEventListener('touchcancel', handleLeftTouchEnd)
   }
 
-  if (actionArea) {
-    actionArea.removeEventListener('touchstart', handleRightTouchStart)
-    actionArea.removeEventListener('touchmove', handleRightTouchMove)
-    actionArea.removeEventListener('touchend', handleRightTouchEnd)
-    actionArea.removeEventListener('touchcancel', handleRightTouchEnd)
+  if (lookArea) {
+    lookArea.removeEventListener('touchstart', handleLookTouchStart)
+    lookArea.removeEventListener('touchmove', handleLookTouchMove)
+    lookArea.removeEventListener('touchend', handleLookTouchEnd)
+    lookArea.removeEventListener('touchcancel', handleLookTouchEnd)
   }
 })
 </script>
 
 <template>
   <div class="mobile-controls">
+    <!-- Full screen look area (catches swipes for camera rotation) -->
+    <div ref="lookAreaRef" class="look-area"></div>
+
     <!-- Left side: Movement joystick -->
     <div ref="moveAreaRef" class="move-area">
       <div class="joystick-base">
@@ -154,7 +175,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Right side: Action buttons -->
-    <div ref="actionAreaRef" class="action-area">
+    <div class="action-area">
       <div class="action-buttons">
         <button class="action-btn attack-btn" @touchstart.prevent="handleAttack">
           <span class="btn-icon">⚔</span>
@@ -170,22 +191,30 @@ onUnmounted(() => {
 <style scoped>
 .mobile-controls {
   position: fixed;
-  bottom: 0;
+  top: 0;
   left: 0;
   right: 0;
-  height: 200px;
+  bottom: 0;
   pointer-events: none;
   z-index: 50;
-  display: flex;
-  justify-content: space-between;
-  padding: 20px;
+}
+
+.look-area {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: auto;
 }
 
 .move-area {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
   width: 150px;
   height: 150px;
   pointer-events: auto;
-  position: relative;
 }
 
 .joystick-base {
@@ -198,8 +227,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   position: absolute;
-  bottom: 20px;
-  left: 20px;
+  bottom: 0;
+  left: 0;
 }
 
 .joystick-dot {
@@ -211,6 +240,9 @@ onUnmounted(() => {
 }
 
 .action-area {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
   width: 150px;
   height: 150px;
   pointer-events: auto;
@@ -240,6 +272,7 @@ onUnmounted(() => {
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
   transition: all 0.15s;
+  pointer-events: auto;
 }
 
 .action-btn:active {

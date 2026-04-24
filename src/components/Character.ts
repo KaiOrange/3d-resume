@@ -16,6 +16,7 @@ export class Character {
   private mesh: THREE.Group
   private body: CANNON.Body
   private world: CANNON.World
+  private charMaterial: CANNON.Material
   private moveSpeed = 6
   private jumpForce = 15
   private isGrounded = false
@@ -61,19 +62,11 @@ export class Character {
     })
 
     const bodyShape = new CANNON.Cylinder(0.4, 0.4, 2.0, 8) // Cylinder matching visual
-    const charMaterial = new CANNON.Material('character')
-
-    // Create contact material for better collision response
-    const iceMaterial = new CANNON.Material('ice')
-    const charIceContact = new CANNON.ContactMaterial(charMaterial, iceMaterial, {
-      friction: 0.5,
-      restitution: 0.0,
-    })
-    this.world.addContactMaterial(charIceContact)
+    this.charMaterial = new CANNON.Material('character')
 
     this.body = new CANNON.Body({
       mass: 20,
-      material: charMaterial,
+      material: this.charMaterial,
       linearDamping: 0.3,
       angularDamping: 0.99, // Prevent rotation from collisions
     })
@@ -82,6 +75,10 @@ export class Character {
     this.body.angularFactor = new CANNON.Vec3(0, 1, 0)
 
     this.world.addBody(this.body)
+  }
+
+  public getMaterial(): CANNON.Material {
+    return this.charMaterial
   }
 
   private playAnimation(name: string, fadeTime = 0.2) {

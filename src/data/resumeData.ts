@@ -9,16 +9,19 @@ export const resumeData = {
     {
       company: '字节跳动',
       role: '前端工程师',
+      icon: '/images/blog.png', 
       period: '2022.03 - 至今',
     },
     {
       company: '腾讯',
       role: '全栈工程师',
+      icon: '/images/blog.png', 
       period: '2020.07 - 2022.02',
     },
     {
       company: '创业公司',
       role: '全栈工程师',
+      icon: '/images/blog.png', 
       period: '2019.03 - 2020.06',
     },
   ],

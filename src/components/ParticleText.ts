@@ -11,9 +11,14 @@ interface Particle {
   gatherProgress: number
   oscillationOffset: number
   oscillationPhase: number
+  isVisible: boolean
+  isPooled: boolean
+  spawnPosition: THREE.Vector3
 }
 
-const PARTICLE_COUNT = 3000 // Doubled for more particles
+const PARTICLE_COUNT = 1000
+const MAX_PARTICLES = 2000
+const GATHER_RATIO = 0.3
 const GATHER_DURATION = 0.8
 const SCATTER_DURATION = 0.8
 
@@ -24,6 +29,7 @@ export class ParticleText {
   private particles: Particle[] = []
   private positions: Float32Array
   private colors: Float32Array
+  private activeParticleCount: number = PARTICLE_COUNT
 
   private isGathering = false
   private isScattering = false
@@ -31,21 +37,17 @@ export class ParticleText {
   private gatherStartTime = 0
   private scatterStartTime = 0
   private textTargetPositions: THREE.Vector3[] = []
+  private gatherParticleCount = 0
   private clock: THREE.Clock
-
-  private goldColor = new THREE.Color('#ffd700')
-  private whiteColor = new THREE.Color('#ffffff')
-  private accentColor = new THREE.Color('#00d4ff')
-  private nebulaColor = new THREE.Color('#7b2fff')
 
   constructor(scene: THREE.Scene) {
     this.clock = new THREE.Clock()
-    this.positions = new Float32Array(PARTICLE_COUNT * 3)
-    this.colors = new Float32Array(PARTICLE_COUNT * 3)
+    this.positions = new Float32Array(MAX_PARTICLES * 3)
+    this.colors = new Float32Array(MAX_PARTICLES * 3)
 
     this.geometry = new THREE.BufferGeometry()
     this.material = new THREE.PointsMaterial({
-      size: 0.25, // Smaller particles
+      size: 0.25,
       vertexColors: true,
       transparent: true,
       opacity: 1,
@@ -64,19 +66,17 @@ export class ParticleText {
   private initParticles() {
     this.particles = []
     for (let i = 0; i < PARTICLE_COUNT; i++) {
-      // Spread particles like stars in the sky - high up and far out
       const angle = Math.random() * Math.PI * 2
-      const radius = 20 + Math.random() * 50 // 20-70 units from center
+      const radius = 20 + Math.random() * 50
       const pos = new THREE.Vector3(
         Math.cos(angle) * radius,
-        Math.random() * 30 + 10, // 15-45 units high - like stars
+        Math.random() * 30 + 10,
         Math.sin(angle) * radius
       )
 
-      // HSL colorful stars - varied hues across the spectrum
       const hue = Math.random()
-      const saturation = 0.6 + Math.random() * 0.4 // 0.6-1.0
-      const lightness = 0.5 + Math.random() * 0.3 // 0.5-0.8
+      const saturation = 0.6 + Math.random() * 0.4
+      const lightness = 0.5 + Math.random() * 0.3
       const color = new THREE.Color().setHSL(hue, saturation, lightness)
 
       this.particles.push({
@@ -90,6 +90,9 @@ export class ParticleText {
         gatherProgress: 0,
         oscillationOffset: Math.random() * Math.PI * 2,
         oscillationPhase: Math.random() * Math.PI * 2,
+        isVisible: true,
+        isPooled: false,
+        spawnPosition: pos.clone(),
       })
 
       const i3 = i * 3
@@ -101,6 +104,7 @@ export class ParticleText {
       this.colors[i3 + 2] = color.b
     }
 
+    this.activeParticleCount = PARTICLE_COUNT
     this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3))
     this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3))
   }
@@ -126,10 +130,10 @@ export class ParticleText {
   private updateOscillation() {
     const time = this.clock.getElapsedTime()
 
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
+    for (let i = 0; i < this.activeParticleCount; i++) {
       const p = this.particles[i]
+      if (!p.isVisible) continue
       if (p.targetPos && p.isGathered) {
-        // Simple harmonic oscillation - small amplitude so text stays readable
         const ampX = 0.08
         const ampY = 0.12
         const ampZ = 0.06
@@ -148,11 +152,11 @@ export class ParticleText {
     const progress = Math.min(elapsed / GATHER_DURATION, 1)
     const t = this.easeOutCubic(progress)
 
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
+    for (let i = 0; i < this.activeParticleCount; i++) {
       const p = this.particles[i]
+      if (!p.isVisible) continue
 
-      // Only particles within textTargetPositions count
-      if (i < this.textTargetPositions.length && this.textTargetPositions[i]) {
+      if (i < this.gatherParticleCount && i < this.textTargetPositions.length && this.textTargetPositions[i]) {
         if (!p.isGathered) {
           p.isGathered = true
           p.startPos.copy(p.position)
@@ -162,9 +166,7 @@ export class ParticleText {
         if (p.targetPos) {
           p.position.lerpVectors(p.startPos, p.targetPos, t)
         }
-        // Keep original color - no color transition during gathering
       } else {
-        // Particles not in text - drift randomly (don't gather)
         p.isGathered = false
         p.targetPos = null
       }
@@ -181,13 +183,13 @@ export class ParticleText {
     const progress = Math.min(elapsed / SCATTER_DURATION, 1)
     const t = this.easeOutCubic(progress)
 
-    for (const p of this.particles) {
+    for (let i = 0; i < this.activeParticleCount; i++) {
+      const p = this.particles[i]
+      if (!p.isVisible) continue
+
       if (p.isGathered && p.targetPos) {
-        // Return to original start position smoothly
         p.position.lerpVectors(p.targetPos, p.startPos, t)
       }
-
-                  // Keep original color during scatter
 
       if (progress >= 1) {
         p.isGathered = false
@@ -198,16 +200,32 @@ export class ParticleText {
     if (progress >= 1) {
       this.isScattering = false
       this.isShowingText = false
+
+      // Hide pooled particles after scatter completes
+      for (let i = PARTICLE_COUNT; i < this.activeParticleCount; i++) {
+        const p = this.particles[i]
+        if (p.isPooled) {
+          p.isVisible = false
+        }
+      }
     }
   }
 
   private updateBuffers() {
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
+    for (let i = 0; i < this.activeParticleCount; i++) {
       const p = this.particles[i]
       const i3 = i * 3
-      this.positions[i3] = p.position.x
-      this.positions[i3 + 1] = p.position.y
-      this.positions[i3 + 2] = p.position.z
+
+      if (p.isVisible) {
+        this.positions[i3] = p.position.x
+        this.positions[i3 + 1] = p.position.y
+        this.positions[i3 + 2] = p.position.z
+      } else {
+        this.positions[i3] = 99999
+        this.positions[i3 + 1] = 99999
+        this.positions[i3 + 2] = 99999
+      }
+
       this.colors[i3] = p.color.r
       this.colors[i3 + 1] = p.color.g
       this.colors[i3 + 2] = p.color.b
@@ -226,18 +244,15 @@ export class ParticleText {
     const ctx = canvas.getContext('2d')!
     const lineCount = lines.length
 
-    // Smaller font size for appropriate world scale
     const baseFontSize = 60
     const lineHeight = baseFontSize * 0.8
 
     canvas.width = 1024
     canvas.height = lineCount * lineHeight + 50
 
-    // Clear with black
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    // Draw white text with letter spacing
     ctx.fillStyle = '#ffffff'
     ctx.font = `bold ${baseFontSize}px Microsoft YaHei, Arial, sans-serif`
     ctx.textAlign = 'center'
@@ -248,14 +263,12 @@ export class ParticleText {
     const charCount = line.length
     const letterSpacing = baseFontSize * 0.3
 
-    // Calculate total text width for centering
     let totalTextWidth = 0
     for (let i = 0; i < charCount; i++) {
       totalTextWidth += ctx.measureText(line[i]).width
       if (i < charCount - 1) totalTextWidth += letterSpacing
     }
 
-    // Draw each character centered
     let currentX = (canvas.width - totalTextWidth) / 2
     for (let i = 0; i < charCount; i++) {
       const charWidth = ctx.measureText(line[i]).width
@@ -267,7 +280,6 @@ export class ParticleText {
     const pixels = imageData.data
     this.textTargetPositions = []
 
-    // World scale - X wider, Y smaller
     const worldScaleX = 1.5
     const worldScaleY = 0.45
     const textWidthWorld = totalTextWidth * worldScaleX
@@ -278,11 +290,9 @@ export class ParticleText {
       for (let x = 0; x < canvas.width; x += sampleStep) {
         const i = (y * canvas.width + x) * 4
         if (pixels[i] > 200) {
-          // Map canvas coords to world coords - properly centered (flipped X for mirror)
           const worldX = -((x - canvas.width / 2) / canvas.width) * textWidthWorld
           const worldY = -((y - canvas.height / 2) / canvas.height) * textHeightWorld
 
-          // Small random jitter for organic look
           const jitterX = (Math.random() - 0.5) * 0.8
           const jitterY = (Math.random() - 0.5) * 0.5
 
@@ -298,6 +308,17 @@ export class ParticleText {
     console.log('Generated text positions:', this.textTargetPositions.length)
   }
 
+  public prepareGather() {
+    // Show all particles including pooled ones
+    for (let i = 0; i < this.activeParticleCount; i++) {
+      const p = this.particles[i]
+      if (p.isPooled && !p.isVisible) {
+        p.isVisible = true
+        p.position.copy(p.spawnPosition)
+      }
+    }
+  }
+
   public gatherLines(lines: string[], targetPosition: THREE.Vector3) {
     if (this.isGathering) return
 
@@ -305,22 +326,71 @@ export class ParticleText {
     this.isScattering = false
     this.gatherStartTime = performance.now() / 1000
 
-    for (const p of this.particles) {
+    // Generate text positions first
+    const textPos = targetPosition.clone()
+    textPos.y += 12
+    textPos.z += 50
+    this.generateTextPositions(lines, textPos)
+
+    const textPosCount = this.textTargetPositions.length
+    const baseGatherCount = Math.floor(PARTICLE_COUNT * GATHER_RATIO)
+
+    // If text needs more particles, create pooled particles
+    if (textPosCount > baseGatherCount && this.activeParticleCount < MAX_PARTICLES) {
+      const deficit = Math.min(textPosCount - baseGatherCount, MAX_PARTICLES - this.activeParticleCount)
+
+      for (let i = 0; i < deficit; i++) {
+        const angle = Math.random() * Math.PI * 2
+        const radius = 20 + Math.random() * 50
+        const spawnPos = new THREE.Vector3(
+          Math.cos(angle) * radius,
+          Math.random() * 30 + 10,
+          Math.sin(angle) * radius
+        )
+
+        const hue = Math.random()
+        const saturation = 0.6 + Math.random() * 0.4
+        const lightness = 0.5 + Math.random() * 0.3
+        const color = new THREE.Color().setHSL(hue, saturation, lightness)
+
+        const pooledParticle: Particle = {
+          position: spawnPos.clone(),
+          startPos: spawnPos.clone(),
+          targetPos: null,
+          originalColor: color.clone(),
+          color: color.clone(),
+          size: 0.05 + Math.random() * 0.1,
+          isGathered: false,
+          gatherProgress: 0,
+          oscillationOffset: Math.random() * Math.PI * 2,
+          oscillationPhase: Math.random() * Math.PI * 2,
+          isVisible: true,
+          isPooled: true,
+          spawnPosition: spawnPos.clone(),
+        }
+
+        this.particles.push(pooledParticle)
+        this.activeParticleCount++
+      }
+    }
+
+    // Set gather count
+    this.gatherParticleCount = Math.min(this.activeParticleCount, textPosCount)
+
+    // Reset all particles first
+    for (let i = 0; i < this.activeParticleCount; i++) {
+      const p = this.particles[i]
       p.isGathered = false
       p.gatherProgress = 0
       p.targetPos = null
+      p.isVisible = true
     }
 
-    // Position text at sky level, very far from platform - centered on target
-    const textPos = targetPosition.clone()
-    textPos.y += 12  // In the sky
-    textPos.z += 50 // Very very far ahead
-
-    this.generateTextPositions(lines, textPos)
+    console.log(`Gathering with ${this.gatherParticleCount} particles (base: ${baseGatherCount}, pooled added: ${this.activeParticleCount - PARTICLE_COUNT})`)
   }
 
   public scatter() {
-    if (this.isScattering || !this.isShowingText) return
+    if (this.isScattering) return
     this.isGathering = false
     this.isScattering = true
     this.scatterStartTime = performance.now() / 1000
@@ -332,5 +402,14 @@ export class ParticleText {
 
   public hasTextVisible(): boolean {
     return this.isShowingText
+  }
+
+  public reset() {
+    // Called when leaving zone - reset state for re-entry
+    this.isGathering = false
+    this.isScattering = false
+    this.isShowingText = false
+    this.textTargetPositions = []
+    this.gatherParticleCount = 0
   }
 }

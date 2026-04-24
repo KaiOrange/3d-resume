@@ -79,22 +79,15 @@ export class ContactBillboards {
       opacity: 0.9,
     })
 
-    // Icon material - tech style with glow
+    // Icon material - tech style without emissive to preserve original colors
     const iconMat = new THREE.MeshStandardMaterial({
       map: iconTexture,
       roughness: 0.1,
-      metalness: 0.5,
-      emissive: 0x00aaff,
-      emissiveIntensity: 0.3,
+      metalness: 0.0,
+      emissive: 0x000000,
+      emissiveIntensity: 0,
       transparent: true,
       opacity: 0.95,
-    })
-
-    // Dark panel material for edges
-    const panelMat = new THREE.MeshStandardMaterial({
-      color: 0x0a1628,
-      roughness: 0.3,
-      metalness: 0.8,
     })
 
     // Build sign with square icon in center
@@ -183,7 +176,7 @@ export class ContactBillboards {
     group.receiveShadow = true
     this.scene.add(group)
 
-    // Pole - glowing
+    // Pole - glowing, static (mass: 0)
     const poleGeom = new THREE.CylinderGeometry(0.03, 0.03, poleHeight, 8)
     const pole = new THREE.Mesh(poleGeom, frameMat.clone())
     pole.position.set(x, poleHeight / 2, z)
@@ -191,7 +184,7 @@ export class ContactBillboards {
     pole.receiveShadow = true
     this.scene.add(pole)
 
-    // Physics for pole
+    // Static physics for pole (so robot can't walk through but can jump on)
     const poleShape = new CANNON.Cylinder(0.03, 0.03, poleHeight, 8)
     const poleBody = new CANNON.Body({ mass: 0 })
     poleBody.addShape(poleShape)
@@ -201,22 +194,22 @@ export class ContactBillboards {
     // Label above the sign
     const labelCanvas = document.createElement('canvas')
     labelCanvas.width = 256
-    labelCanvas.height = 64
+    labelCanvas.height = 80
     const ctx = labelCanvas.getContext('2d')!
-    ctx.fillStyle = 'rgba(0, 20, 40, 0.85)'
-    ctx.fillRect(0, 0, 256, 64)
+    ctx.fillStyle = 'rgba(0, 20, 40, 0.9)'
+    ctx.fillRect(0, 0, 256, 80)
 
-    // Glowing text effect
+    // Cyan color text with glow
     ctx.shadowColor = '#00d4ff'
-    ctx.shadowBlur = 10
+    ctx.shadowBlur = 8
     ctx.fillStyle = '#00ffff'
-    ctx.font = 'bold 28px Microsoft YaHei'
+    ctx.font = 'bold 40px Microsoft YaHei'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(contact.name, 128, 32)
+    ctx.fillText(contact.name, 128, 40)
 
     const labelTexture = new THREE.CanvasTexture(labelCanvas)
-    const labelGeom = new THREE.PlaneGeometry(signWidth, 0.4)
+    const labelGeom = new THREE.PlaneGeometry(signWidth * 1.2, 0.6)
     const labelMat = new THREE.MeshBasicMaterial({
       map: labelTexture,
       transparent: true,

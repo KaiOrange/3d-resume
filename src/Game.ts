@@ -40,6 +40,7 @@ export class Game {
   private clock: THREE.Clock
   private keys: { [key: string]: boolean } = {}
   private mouseLookDelta = { x: 0, y: 0 }
+  private mobileMoveDirection = { x: 0, z: 0 }
   private texturesLoaded = false
   private wasOnZone = false
 
@@ -117,6 +118,9 @@ export class Game {
     // Character
     this.character = new Character(this.scene, this.physicsWorld.world, this.platform.getSpawnPoint())
 
+    // Set up contact materials between character and platform objects
+    this.platform.setupContactMaterials(this.character.getMaterial())
+
     // Particle Text System
     this.particleText = new ParticleText(this.scene)
     this.particleText.create()
@@ -149,6 +153,7 @@ export class Game {
       new THREE.Vector3(10, 0, -10)
     )
     this.destructibleBricks.create()
+    this.destructibleBricks.setupContactMaterials(this.character.getMaterial())
 
     // Camera Controller
     this.cameraController = new CameraController(this.camera, this.character)
@@ -208,10 +213,10 @@ export class Game {
     // Only build input when enabled
     let forward = false, backward = false, left = false, right = false, jump = false, attack = false
     if (inputEnabled) {
-      forward = this.keys['KeyW'] || this.keys['ArrowUp']
-      backward = this.keys['KeyS'] || this.keys['ArrowDown']
-      left = this.keys['KeyA'] || this.keys['ArrowLeft']
-      right = this.keys['KeyD'] || this.keys['ArrowRight']
+      forward = this.keys['KeyW'] || this.keys['ArrowUp'] || this.mobileMoveDirection.z < -0.3
+      backward = this.keys['KeyS'] || this.keys['ArrowDown'] || this.mobileMoveDirection.z > 0.3
+      left = this.keys['KeyA'] || this.keys['ArrowLeft'] || this.mobileMoveDirection.x < -0.3
+      right = this.keys['KeyD'] || this.keys['ArrowRight'] || this.mobileMoveDirection.x > 0.3
       jump = this.keys['Space']
       attack = this.keys['KeyJ']
     }
@@ -232,6 +237,9 @@ export class Game {
 
     // Update character
     this.character.update(delta, { forward, backward, left, right, jump, attack }, this.platform)
+
+    // Update platform pushable objects
+    this.platform.update(delta, this.character.getPosition(), attack)
 
     // Check if robot fell off platform - reset to center
     if (this.character.needsReset()) {
@@ -256,7 +264,8 @@ export class Game {
       }
       this.wasOnZone = true
     } else {
-      if (this.wasOnZone && this.particleText.hasTextVisible()) {
+      // Scatter particles when leaving zone
+      if (this.wasOnZone && (this.particleText.isActive() || this.particleText.hasTextVisible())) {
         this.particleText.scatter()
       }
       this.wasOnZone = false
@@ -301,7 +310,8 @@ export class Game {
   }
 
   public setMobileMove(direction: { x: number; z: number }) {
-    // Mobile input handling
+    this.mobileMoveDirection.x = direction.x
+    this.mobileMoveDirection.z = direction.z
   }
 
   public setMobileJump(active: boolean) {

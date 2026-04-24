@@ -29,6 +29,10 @@ export class InfoBillboards {
 
   private createProjectBillboards() {
     const halfSize = this.platformSize / 2
+    const count = resumeData.projects.length
+    const billboardWidth = 10
+    const availableSpace = this.platformSize
+    const startZ = -availableSpace / 2 + billboardWidth / 2
 
     resumeData.projects.forEach((project, index) => {
       const texture = createProjectTexture(project)
@@ -43,9 +47,13 @@ export class InfoBillboards {
 
       const mesh = new THREE.Mesh(geometry, material)
 
-      // Position on the east side, facing platform center (south)
-      mesh.position.set(halfSize + 8, 5 + index * 1, -10 + index * 8)
-      mesh.rotation.y = Math.PI // Face toward platform center (-Z)
+      // CSS space-around layout: position = start + (index + 0.5) * (availableSpace / count)
+      const zPos = startZ + (index + 0.5) * (availableSpace / count)
+      const yPos = 5
+
+      // Position on the east side, parallel to platform (facing toward platform center -X)
+      mesh.position.set(halfSize + 8, yPos, zPos)
+      mesh.rotation.y = -Math.PI / 2 // Face toward platform center, flipped
       this.scene.add(mesh)
 
       this.billboards.push({
@@ -58,12 +66,17 @@ export class InfoBillboards {
 
   private createExperienceBillboards() {
     const halfSize = this.platformSize / 2
+    const count = resumeData.experience.length
+    const billboardWidth = 6
+    const availableSpace = this.platformSize
+    const startZ = -availableSpace / 2 + billboardWidth / 2
 
     resumeData.experience.forEach((exp, index) => {
-      const texture = createExperienceTexture(exp)
+      const texture = createExperienceTexture(exp, exp.icon)
       texture.colorSpace = THREE.SRGBColorSpace
 
-      const geometry = new THREE.PlaneGeometry(8, 3)
+      // Updated billboard size to match new texture 600x240
+      const geometry = new THREE.PlaneGeometry(6, 2.4)
       const material = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
@@ -72,9 +85,13 @@ export class InfoBillboards {
 
       const mesh = new THREE.Mesh(geometry, material)
 
-      // Position on the west side, facing platform center (south)
-      mesh.position.set(-halfSize - 8, 4 + index * 1, -8 + index * 7)
-      mesh.rotation.y = 0 // Face toward platform center (-Z)
+      // CSS space-around layout
+      const zPos = startZ + (index + 0.5) * (availableSpace / count)
+      const yPos = 4
+
+      // Position on the west side, parallel to platform
+      mesh.position.set(-halfSize - 8, yPos, zPos)
+      mesh.rotation.y = Math.PI / 2
       this.scene.add(mesh)
 
       this.billboards.push({
@@ -98,16 +115,14 @@ export class InfoBillboards {
         targetOpacity = Math.max(0, 1 - (distance - viewDistance) / 20)
       }
 
-      // Animate opacity
+      // Animate opacity for billboard
       const material = billboard.mesh.material as THREE.MeshBasicMaterial
       material.opacity += (targetOpacity - material.opacity) * delta * 3
 
-      // Billboard always faces camera
-      billboard.mesh.lookAt(billboard.mesh.position)
-
       // Subtle floating animation
       const baseY = billboard.targetPosition.y
-      billboard.mesh.position.y = baseY + Math.sin(time * 0.5 + billboard.targetPosition.x) * 0.1
+      const floatOffset = Math.sin(time * 0.5 + billboard.targetPosition.x) * 0.1
+      billboard.mesh.position.y = baseY + floatOffset
     }
   }
 

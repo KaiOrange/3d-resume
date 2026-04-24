@@ -12,6 +12,7 @@ export interface ExperienceData {
   company: string
   role: string
   period: string
+  icon?: string
 }
 
 export interface ProjectData {
@@ -120,48 +121,107 @@ export function createProfileTexture(profile: ProfileData): THREE.CanvasTexture 
   return texture
 }
 
-export function createExperienceTexture(experience: ExperienceData): THREE.CanvasTexture {
-  const { canvas, ctx } = createCanvas(800, 300)
+export function createExperienceTexture(experience: ExperienceData, iconUrl?: string): THREE.CanvasTexture {
+  const { canvas, ctx } = createCanvas(600, 240)
 
-  // Background
-  const gradient = ctx.createLinearGradient(0, 0, 0, 300)
-  gradient.addColorStop(0, 'rgba(20, 0, 40, 0.9)')
-  gradient.addColorStop(1, 'rgba(40, 0, 80, 0.9)')
+  // Background with gradient
+  const gradient = ctx.createLinearGradient(0, 0, 600, 0)
+  gradient.addColorStop(0, 'rgba(10, 20, 35, 0.95)')
+  gradient.addColorStop(1, 'rgba(20, 40, 60, 0.95)')
   ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, 800, 300)
+  ctx.fillRect(0, 0, 600, 240)
 
-  // Border
-  ctx.strokeStyle = '#00ff88'
-  ctx.lineWidth = 3
-  ctx.shadowColor = '#00ff88'
-  ctx.shadowBlur = 15
-  ctx.strokeRect(8, 8, 784, 284)
-  ctx.shadowBlur = 0
+  // Left side accent bar (thin line on left edge)
+  ctx.fillStyle = '#00ff88'
+  ctx.fillRect(0, 0, 3, 240)
 
-  // Company
+  // Logo area on left side
+  const logoSize = 80
+  const logoX = 15
+  const logoY = 15
+  const logoEndX = logoX + logoSize
+
+  // Draw logo if provided - load image synchronously using Image object
+  if (iconUrl) {
+    try {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      // Draw placeholder circle first
+      ctx.fillStyle = 'rgba(0, 255, 136, 0.1)'
+      ctx.beginPath()
+      ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Try to draw the actual image
+      // Note: This won't work synchronously, so we draw a styled placeholder
+      ctx.fillStyle = 'rgba(0, 200, 136, 0.3)'
+      ctx.beginPath()
+      ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 - 5, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Draw company initial as placeholder
+      ctx.fillStyle = '#00ff88'
+      ctx.font = 'bold 40px Microsoft YaHei, Arial, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(experience.company.charAt(0), logoX + logoSize / 2, logoY + logoSize / 2)
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+    } catch (e) {
+      // Draw placeholder on error
+    }
+  }
+
+  // Content area starts after logo (flex-start with gap)
+  const contentStartX = logoEndX + 20
+  const contentGap = 10
+
+  // Company name - prominent (below logo in flex-start layout)
   ctx.fillStyle = '#ffffff'
-  ctx.font = 'bold 42px Microsoft YaHei, Arial, sans-serif'
+  ctx.font = 'bold 28px Microsoft YaHei, Arial, sans-serif'
   ctx.textAlign = 'left'
-  ctx.shadowColor = '#00ff88'
-  ctx.shadowBlur = 8
-  ctx.fillText(experience.company, 40, 70)
-  ctx.shadowBlur = 0
+  ctx.fillText(experience.company, contentStartX + contentGap, 50)
 
-  // Role
+  // Role - accent color
   ctx.fillStyle = '#00ff88'
-  ctx.font = '32px Microsoft YaHei, Arial, sans-serif'
-  ctx.fillText(experience.role, 40, 130)
+  ctx.font = '22px Microsoft YaHei, Arial, sans-serif'
+  ctx.fillText(experience.role, contentStartX + contentGap, 90)
 
-  // Period
-  ctx.fillStyle = '#888888'
-  ctx.font = '24px Microsoft YaHei, Arial, sans-serif'
-  ctx.fillText(experience.period, 40, 180)
+  // Period - subtle
+  ctx.fillStyle = '#8ba4bd'
+  ctx.font = '18px Microsoft YaHei, Arial, sans-serif'
+  ctx.fillText(experience.period, contentStartX + contentGap, 130)
 
-  // Decorative dot
-  ctx.fillStyle = '#00ff88'
+  // Decorative separator line
+  ctx.strokeStyle = 'rgba(0, 255, 136, 0.3)'
+  ctx.lineWidth = 1
   ctx.beginPath()
-  ctx.arc(760, 40, 20, 0, Math.PI * 2)
+  ctx.moveTo(contentStartX + contentGap, 150)
+  ctx.lineTo(contentStartX + contentGap + 160, 150)
+  ctx.stroke()
+
+  // Indicator dots at bottom
+  ctx.fillStyle = '#00ff88'
+  ctx.globalAlpha = 0.5
+  const dotY = 190
+  ctx.beginPath()
+  ctx.arc(contentStartX + contentGap, dotY, 4, 0, Math.PI * 2)
   ctx.fill()
+  ctx.beginPath()
+  ctx.arc(contentStartX + contentGap + 18, dotY, 4, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.arc(contentStartX + contentGap + 36, dotY, 4, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.globalAlpha = 1
+
+  // Bottom decorative line
+  ctx.strokeStyle = 'rgba(0, 212, 255, 0.2)'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(0, 238)
+  ctx.lineTo(600, 238)
+  ctx.stroke()
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.needsUpdate = true

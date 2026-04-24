@@ -18,11 +18,25 @@ export class DestructibleBricks {
   private wallPosition: THREE.Vector3
   private respawnDelay = 5.0
   private attackCooldown = 0
+  private isInitialized = false
+  private initTimer = 0
+  private readonly INIT_DELAY = 0.5  // Seconds before bricks become dynamic
+  private brickMaterial: CANNON.Material
 
   constructor(scene: THREE.Scene, world: CANNON.World, position: THREE.Vector3) {
     this.scene = scene
     this.world = world
     this.wallPosition = position.clone()
+    this.brickMaterial = new CANNON.Material('brick')
+  }
+
+  public setupContactMaterials(charMaterial: CANNON.Material) {
+    // Create contact material for character-brick collision
+    const charBrickContact = new CANNON.ContactMaterial(charMaterial, this.brickMaterial, {
+      friction: 0.6,
+      restitution: 0.0,
+    })
+    this.world.addContactMaterial(charBrickContact)
   }
 
   public create() {
@@ -30,10 +44,12 @@ export class DestructibleBricks {
   }
 
   private createBrickWall() {
-    const rowsHigh = 5
-    const bricksPerRow = 4
-    const startX = this.wallPosition.x - (bricksPerRow * this.brickWidth) / 2
-    const startY = this.wallPosition.y + 0.01 // Slightly above platform
+    const rowsHigh = 6
+    const bricksPerRow = 5
+    // Center the wall properly
+    const totalWidth = bricksPerRow * this.brickWidth
+    const startX = this.wallPosition.x - totalWidth / 2 + this.brickWidth / 2
+    const startY = this.wallPosition.y + this.brickHeight / 2 + 0.01
     const startZ = this.wallPosition.z
 
     // Load stone texture
@@ -49,14 +65,10 @@ export class DestructibleBricks {
       metalness: 0.2,
     })
 
+    // Create a proper rectangular wall (all rows same brick count)
     for (let row = 0; row < rowsHigh; row++) {
-      const oddRow = row % 2 === 1
-
-      const bricksInThisRow = oddRow ? bricksPerRow + 1 : bricksPerRow
-      const offsetX = oddRow ? this.brickWidth / 4 : 0
-
-      for (let i = 0; i < bricksInThisRow; i++) {
-        const posX = startX + i * this.brickWidth + offsetX
+      for (let i = 0; i < bricksPerRow; i++) {
+        const posX = startX + i * this.brickWidth
         const posY = startY + row * this.brickHeight
         const posZ = startZ
 
@@ -78,12 +90,13 @@ export class DestructibleBricks {
     const shape = new CANNON.Box(new CANNON.Vec3(this.brickWidth / 2, this.brickHeight / 2, this.brickDepth / 2))
     const body = new CANNON.Body({
       mass: 2,
-      material: new CANNON.Material('brick'),
+      material: this.brickMaterial,
       linearDamping: 0.3,
       angularDamping: 0.5,
     })
     body.addShape(shape)
     body.position.set(x, y, z)
+    body.type = CANNON.Body.STATIC  // Start as static
     this.world.addBody(body)
 
     this.bricks.push({
@@ -96,6 +109,20 @@ export class DestructibleBricks {
 
   public update(delta: number, robotPosition: THREE.Vector3, isAttacking: boolean) {
     const attackRadius = 4.0
+
+    // Initialize bricks after a short delay - make them dynamic
+    if (!this.isInitialized) {
+      this.initTimer += delta
+      if (this.initTimer >= this.INIT_DELAY) {
+        for (const brick of this.bricks) {
+          brick.body.type = CANNON.Body.DYNAMIC
+          brick.body.mass = 2
+          brick.body.updateMassProperties()
+          brick.body.wakeUp()
+        }
+        this.isInitialized = true
+      }
+    }
 
     // Cooldown between attack impulses
     if (this.attackCooldown > 0) {

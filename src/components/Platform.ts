@@ -7,10 +7,27 @@ export class Platform {
   private platformSize = 50
   private wallHeight = 2
   private spawnPoint = new THREE.Vector3(0, 1.5, 0)
+  private objectMaterial: CANNON.Material
+  private pushableObjects: { mesh: THREE.Mesh; body: CANNON.Body }[] = []
+  private attackCooldown = 0
 
   constructor(scene: THREE.Scene, world: CANNON.World) {
     this.scene = scene
     this.world = world
+    this.objectMaterial = new CANNON.Material('object')
+  }
+
+  public setupContactMaterials(charMaterial: CANNON.Material) {
+    // Create contact material between character and pushable objects
+    const charObjectContact = new CANNON.ContactMaterial(charMaterial, this.objectMaterial, {
+      friction: 0.6,
+      restitution: 0.0,
+    })
+    this.world.addContactMaterial(charObjectContact)
+  }
+
+  public getObjectMaterial(): CANNON.Material {
+    return this.objectMaterial
   }
 
   public getSpawnPoint(): THREE.Vector3 {
@@ -142,12 +159,13 @@ export class Platform {
 
       // Physics - lower mass so robot can push them
       const cubeShape = new CANNON.Box(new CANNON.Vec3(1, 1, 1))
-      const cubeBody = new CANNON.Body({ mass: 2, material: new CANNON.Material('ice') })
+      const cubeBody = new CANNON.Body({ mass: 2, material: this.objectMaterial })
       cubeBody.addShape(cubeShape)
       cubeBody.position.set(pos.x, pos.y, pos.z)
       cubeBody.linearDamping = 0.5
       cubeBody.angularDamping = 0.5
       this.world.addBody(cubeBody)
+      this.pushableObjects.push({ mesh: cube, body: cubeBody })
     })
 
     // Cylinders
@@ -174,12 +192,13 @@ export class Platform {
 
       // Physics - lower mass, proper cylinder orientation
       const cylShape = new CANNON.Cylinder(1, 1, 3, 16)
-      const cylBody = new CANNON.Body({ mass: 2, material: new CANNON.Material('ice') })
+      const cylBody = new CANNON.Body({ mass: 2, material: this.objectMaterial })
       cylBody.addShape(cylShape)
       cylBody.position.set(pos.x, pos.y, pos.z)
       cylBody.linearDamping = 0.5
       cylBody.angularDamping = 0.5
       this.world.addBody(cylBody)
+      this.pushableObjects.push({ mesh: cylinder, body: cylBody })
     })
 
     // Spheres (with high friction to stop eventually)
@@ -188,11 +207,6 @@ export class Platform {
       new THREE.Vector3(-6, 2, 12),
       new THREE.Vector3(10, 2, 15),
     ]
-
-    // Create shared high-friction material
-    const sphereMaterial = new CANNON.Material('highFriction')
-    sphereMaterial.friction = 0.8
-    sphereMaterial.restitution = 0.2
 
     spherePositions.forEach(pos => {
       const sphereGeom = new THREE.SphereGeometry(1, 32, 32)
@@ -213,13 +227,44 @@ export class Platform {
       const sphereShape = new CANNON.Sphere(1)
       const sphereBody = new CANNON.Body({
         mass: 2,
-        material: sphereMaterial,
+        material: this.objectMaterial,
         linearDamping: 0.8,
         angularDamping: 0.9,
       })
       sphereBody.addShape(sphereShape)
       sphereBody.position.set(pos.x, pos.y, pos.z)
       this.world.addBody(sphereBody)
+      this.pushableObjects.push({ mesh: sphere, body: sphereBody })
     })
+  }
+
+  public update(delta: number, robotPosition: THREE.Vector3, isAttacking: boolean) {
+    const attackRadius = 4.0
+
+    // Cooldown between attack impulses
+    if (this.attackCooldown > 0) {
+      this.attackCooldown -= delta
+    }
+
+    for (const obj of this.pushableObjects) {
+      // Sync mesh with physics body
+      obj.mesh.position.copy(obj.body.position as unknown as THREE.Vector3)
+      obj.mesh.quaternion.copy(obj.body.quaternion as unknown as THREE.Quaternion)
+
+      // Apply attack impulse when robot attacks nearby
+      if (isAttacking && this.attackCooldown <= 0) {
+        const dx = obj.body.position.x - robotPosition.x
+        const dz = obj.body.position.z - robotPosition.z
+        const distance = Math.sqrt(dx * dx + dz * dz)
+
+        if (distance < attackRadius) {
+          const force = 8 / Math.max(distance, 1)
+          const impulse = new CANNON.Vec3(dx * force, force * 0.3, dz * force)
+          obj.body.applyImpulse(impulse, obj.body.position)
+          obj.body.wakeUp()
+          this.attackCooldown = 0.3
+        }
+      }
+    }
   }
 }
