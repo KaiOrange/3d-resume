@@ -1,0 +1,71 @@
+{
+  "profile": {
+    "name": "张三",
+    "title": "全栈开发工程师",
+    "avatar": "",
+    "email": "zhangsan@example.com",
+    "phone": "138-0000-0000",
+    "location": "北京",
+    "socials": [
+      { "platform": "GitHub", "url": "https://github.com/example", "icon": "github" },
+      { "platform": "LinkedIn", "url": "https://linkedin.com/in/example", "icon": "linkedin" }
+    ],
+    "bio": "5年全栈开发经验，热爱3D可视化和交互设计，精通 Vue、React、Three.js"
+  },
+  "experience": [
+    {
+      "company": "字节跳动",
+      "role": "前端工程师",
+      "period": "2022.03 - 至今",
+      "color": "#00d4ff",
+      "highlights": [
+        "主导公司内部3D可视化平台开发",
+        "性能优化使首屏加载减少40%",
+        "搭建前端自动化测试体系"
+      ]
+    },
+    {
+      "company": "腾讯",
+      "role": "全栈工程师",
+      "period": "2020.07 - 2022.02",
+      "color": "#00ff88",
+      "highlights": [
+        "负责微信小程序核心模块开发",
+        "设计并实现微服务网关",
+        "团队代码规范与CI/CD流程建设"
+      ]
+    },
+    {
+      "company": "创业公司",
+      "role": "全栈工程师",
+      "period": "2019.03 - 2020.06",
+      "color": "#ff6b35",
+      "highlights": [
+        "从0到1搭建SaaS平台",
+        "独立完成后端API和前端UI开发"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "宇宙简历",
+      "tech": ["Vue 3", "Three.js", "TresJS", "TypeScript"],
+      "category": "frontend",
+      "description": "3D交互式个人简历，宇宙主题，支持桌面和移动端",
+      "link": "https://github.com/example/cosmic-resume"
+    },
+    {
+      "name": "数据可视化平台",
+      "tech": ["React", "D3.js", "Node.js", "PostgreSQL"],
+      "category": "fullstack",
+      "description": "企业级数据可视化平台，支持自定义图表和实时数据流",
+      "link": "https://github.com/example/data-viz"
+    }
+  ],
+  "scene": {
+    "themeColor": "#0a0e27",
+    "accentColor": "#00d4ff",
+    "nebulaColor": "#7b2fff",
+    "starCount": 100000
+  }
+}
