@@ -141,36 +141,25 @@ export function createExperienceTexture(experience: ExperienceData, iconUrl?: st
   const logoY = 15
   const logoEndX = logoX + logoSize
 
-  // Draw logo if provided - load image synchronously using Image object
-  if (iconUrl) {
-    try {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      // Draw placeholder circle first
-      ctx.fillStyle = 'rgba(0, 255, 136, 0.1)'
-      ctx.beginPath()
-      ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2, 0, Math.PI * 2)
-      ctx.fill()
+  // Draw placeholder circle first
+  ctx.fillStyle = 'rgba(0, 255, 136, 0.1)'
+  ctx.beginPath()
+  ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2, 0, Math.PI * 2)
+  ctx.fill()
 
-      // Try to draw the actual image
-      // Note: This won't work synchronously, so we draw a styled placeholder
-      ctx.fillStyle = 'rgba(0, 200, 136, 0.3)'
-      ctx.beginPath()
-      ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 - 5, 0, Math.PI * 2)
-      ctx.fill()
+  ctx.fillStyle = 'rgba(0, 200, 136, 0.3)'
+  ctx.beginPath()
+  ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 - 5, 0, Math.PI * 2)
+  ctx.fill()
 
-      // Draw company initial as placeholder
-      ctx.fillStyle = '#00ff88'
-      ctx.font = 'bold 40px Microsoft YaHei, Arial, sans-serif'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(experience.company.charAt(0), logoX + logoSize / 2, logoY + logoSize / 2)
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'alphabetic'
-    } catch (e) {
-      // Draw placeholder on error
-    }
-  }
+  // Draw company initial as placeholder
+  ctx.fillStyle = '#00ff88'
+  ctx.font = 'bold 40px Microsoft YaHei, Arial, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(experience.company.charAt(0), logoX + logoSize / 2, logoY + logoSize / 2)
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
 
   // Content area starts after logo (flex-start with gap)
   const contentStartX = logoEndX + 20
@@ -225,25 +214,73 @@ export function createExperienceTexture(experience: ExperienceData, iconUrl?: st
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.needsUpdate = true
+
+  // Load icon image asynchronously
+  if (iconUrl) {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      // Draw the actual icon on top of placeholder
+      ctx.drawImage(img, logoX + 5, logoY + 5, logoSize - 10, logoSize - 10)
+      texture.needsUpdate = true
+    }
+    img.src = iconUrl
+  }
+
   return texture
 }
 
 export function createProjectTexture(project: ProjectData): THREE.CanvasTexture {
-  const { canvas, ctx } = createCanvas(900, 400)
+  // Pre-calculate needed height based on content
+  const headerHeight = 100
+  const techAreaHeight = 120
+  const lineHeight = 45
+
+  // Calculate description height
+  const descLines = project.description.split('\n')
+  let totalDescLines = 0
+  const tempCanvas = document.createElement('canvas')
+  const tempCtx = tempCanvas.getContext('2d')!
+  tempCtx.font = '24px Microsoft YaHei, Arial, sans-serif'
+
+  descLines.forEach(line => {
+    const words = line.split('')
+    let currentLine = ''
+    const maxWidth = 820
+    words.forEach(char => {
+      const testLine = currentLine + char
+      const metrics = tempCtx.measureText(testLine)
+      if (metrics.width > maxWidth && currentLine !== '') {
+        totalDescLines++
+        currentLine = char
+      } else {
+        currentLine = testLine
+      }
+    })
+    if (currentLine !== '') {
+      totalDescLines++
+    }
+  })
+
+  const descHeight = totalDescLines * lineHeight
+  const bottomPadding = 10
+  const canvasHeight = headerHeight + techAreaHeight + descHeight + bottomPadding
+
+  const { canvas, ctx } = createCanvas(900, canvasHeight)
 
   // Background
-  const gradient = ctx.createLinearGradient(0, 0, 0, 400)
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvasHeight)
   gradient.addColorStop(0, 'rgba(30, 0, 50, 0.9)')
   gradient.addColorStop(1, 'rgba(60, 0, 100, 0.9)')
   ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, 900, 400)
+  ctx.fillRect(0, 0, 900, canvasHeight)
 
   // Border
   ctx.strokeStyle = '#bf5af2'
   ctx.lineWidth = 3
   ctx.shadowColor = '#bf5af2'
   ctx.shadowBlur = 15
-  ctx.strokeRect(8, 8, 884, 384)
+  ctx.strokeRect(8, 8, 884, canvasHeight - 16)
   ctx.shadowBlur = 0
 
   // Project name
@@ -280,30 +317,41 @@ export function createProjectTexture(project: ProjectData): THREE.CanvasTexture 
     currentX += tagWidth + 15
   })
 
-  // Description
+  // Description - with proper \n handling
   ctx.fillStyle = '#cccccc'
-  ctx.font = '26px Microsoft YaHei, Arial, sans-serif'
+  ctx.font = '24px Microsoft YaHei, Arial, sans-serif'
   ctx.textAlign = 'left'
-  const descY = currentY + 70
+  const descY = currentY + 60
 
-  // Word wrap description
   const maxWidth = 820
-  const words = project.description.split('')
-  let line = ''
   let y = descY
 
-  words.forEach((char) => {
-    const testLine = line + char
-    const metrics = ctx.measureText(testLine)
-    if (metrics.width > maxWidth && line !== '') {
+  // Split by \n to handle explicit line breaks
+  const paragraphs = project.description.split('\n')
+
+  paragraphs.forEach((paragraph, pIndex) => {
+    if (pIndex > 0) {
+      y += lineHeight
+    }
+
+    const words = paragraph.split('')
+    let line = ''
+
+    words.forEach((char) => {
+      const testLine = line + char
+      const metrics = ctx.measureText(testLine)
+      if (metrics.width > maxWidth && line !== '') {
+        ctx.fillText(line, 40, y)
+        line = char
+        y += lineHeight
+      } else {
+        line = testLine
+      }
+    })
+    if (line !== '') {
       ctx.fillText(line, 40, y)
-      line = char
-      y += 40
-    } else {
-      line = testLine
     }
   })
-  ctx.fillText(line, 40, y)
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.needsUpdate = true

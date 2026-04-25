@@ -10,19 +10,51 @@ const emit = defineEmits<{
 
 const leftTouchId = ref<number | null>(null)
 const lookTouchId = ref<number | null>(null)
-const leftStartX = ref(0)
-const leftStartY = ref(0)
 const lookStartX = ref(0)
 const lookStartY = ref(0)
 
 const moveAreaRef = ref<HTMLDivElement>()
 const lookAreaRef = ref<HTMLDivElement>()
 
+// Ripple animation state
+const attackRipple = ref(false)
+const jumpRipple = ref(false)
+
+// Joystick state
+const joystickDotX = ref(0)
+const joystickDotY = ref(0)
+const isJoystickActive = ref(false)
+
+const JOYSTICK_BASE_SIZE = 120
+const JOYSTICK_DOT_SIZE = 50
+const JOYSTICK_MAX_DISTANCE = (JOYSTICK_BASE_SIZE - JOYSTICK_DOT_SIZE) / 2
+
 function handleLeftTouchStart(e: TouchEvent) {
   const touch = e.touches[0]
+  const rect = moveAreaRef.value?.getBoundingClientRect()
+  if (!rect) return
+
+  // Calculate touch position relative to joystick center
+  const touchX = touch.clientX - rect.left - JOYSTICK_BASE_SIZE / 2
+  const touchY = touch.clientY - rect.top - JOYSTICK_BASE_SIZE / 2
+
   leftTouchId.value = touch.identifier
-  leftStartX.value = touch.clientX
-  leftStartY.value = touch.clientY
+  isJoystickActive.value = true
+
+  // Clamp dot position within joystick base
+  const distance = Math.sqrt(touchX * touchX + touchY * touchY)
+  if (distance > JOYSTICK_MAX_DISTANCE) {
+    const scale = JOYSTICK_MAX_DISTANCE / distance
+    joystickDotX.value = touchX * scale
+    joystickDotY.value = touchY * scale
+  } else {
+    joystickDotX.value = touchX
+    joystickDotY.value = touchY
+  }
+
+  // Emit direction immediately based on touch position
+  emitJoystickDirection(touchX, touchY)
+  e.preventDefault()
 }
 
 function handleLeftTouchMove(e: TouchEvent) {
@@ -31,20 +63,40 @@ function handleLeftTouchMove(e: TouchEvent) {
   for (let i = 0; i < e.touches.length; i++) {
     const touch = e.touches[i]
     if (touch.identifier === leftTouchId.value) {
-      const deltaX = touch.clientX - leftStartX.value
-      const deltaY = touch.clientY - leftStartY.value
+      const rect = moveAreaRef.value?.getBoundingClientRect()
+      if (!rect) return
 
-      const deadzone = 15
-      if (Math.abs(deltaX) > deadzone || Math.abs(deltaY) > deadzone) {
-        const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
-        const normalizedX = deltaX / length
-        const normalizedY = deltaY / length
+      const touchX = touch.clientX - rect.left - JOYSTICK_BASE_SIZE / 2
+      const touchY = touch.clientY - rect.top - JOYSTICK_BASE_SIZE / 2
 
-        // Up is negative Y in screen coords, but we want forward (-Z)
-        emit('move', { x: normalizedX, z: -normalizedY })
+      // Clamp dot position within joystick base
+      const distance = Math.sqrt(touchX * touchX + touchY * touchY)
+      if (distance > JOYSTICK_MAX_DISTANCE) {
+        const scale = JOYSTICK_MAX_DISTANCE / distance
+        joystickDotX.value = touchX * scale
+        joystickDotY.value = touchY * scale
+      } else {
+        joystickDotX.value = touchX
+        joystickDotY.value = touchY
       }
+
+      emitJoystickDirection(touchX, touchY)
       break
     }
+  }
+  e.preventDefault()
+}
+
+function emitJoystickDirection(touchX: number, touchY: number) {
+  const deadzone = 10
+  const distance = Math.sqrt(touchX * touchX + touchY * touchY)
+
+  if (distance > deadzone) {
+    const normalizedX = touchX / distance
+    const normalizedY = touchY / distance
+    emit('move', { x: normalizedX, z: -normalizedY })
+  } else {
+    emit('move', { x: 0, z: 0 })
   }
 }
 
@@ -53,6 +105,9 @@ function handleLeftTouchEnd(e: TouchEvent) {
     const touch = e.changedTouches[i]
     if (touch.identifier === leftTouchId.value) {
       leftTouchId.value = null
+      isJoystickActive.value = false
+      joystickDotX.value = 0
+      joystickDotY.value = 0
       emit('move', { x: 0, z: 0 })
       break
     }
@@ -115,11 +170,15 @@ function handleLookTouchEnd(e: TouchEvent) {
 }
 
 function handleJump() {
+  jumpRipple.value = true
   emit('jump')
+  setTimeout(() => { jumpRipple.value = false }, 450)
 }
 
 function handleAttack() {
+  attackRipple.value = true
   emit('attack')
+  setTimeout(() => { attackRipple.value = false }, 450)
 }
 
 onMounted(() => {
@@ -169,8 +228,13 @@ onUnmounted(() => {
 
     <!-- Left side: Movement joystick -->
     <div ref="moveAreaRef" class="move-area">
-      <div class="joystick-base">
-        <div class="joystick-dot"></div>
+      <div class="joystick-base" :class="{ active: isJoystickActive }">
+        <div
+          class="joystick-dot"
+          :style="{
+            transform: `translate(${joystickDotX}px, ${joystickDotY}px)`
+          }"
+        ></div>
       </div>
     </div>
 
@@ -178,10 +242,18 @@ onUnmounted(() => {
     <div class="action-area">
       <div class="action-buttons">
         <button class="action-btn attack-btn" @touchstart.prevent="handleAttack">
-          <span class="btn-icon">⚔</span>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 6l12 12"/>
+            <path d="M18 6L6 18"/>
+          </svg>
+          <span class="ripple" :class="{ active: attackRipple }"></span>
         </button>
         <button class="action-btn jump-btn" @touchstart.prevent="handleJump">
-          <span class="btn-icon">⬆</span>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 19V5"/>
+            <path d="M5 12l7-7 7 7"/>
+          </svg>
+          <span class="ripple" :class="{ active: jumpRipple }"></span>
         </button>
       </div>
     </div>
@@ -210,8 +282,8 @@ onUnmounted(() => {
 
 .move-area {
   position: fixed;
-  bottom: 20px;
-  left: 20px;
+  bottom: 30px;
+  left: 30px;
   width: 150px;
   height: 150px;
   pointer-events: auto;
@@ -221,30 +293,44 @@ onUnmounted(() => {
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(0, 212, 255, 0.3);
+  background: radial-gradient(circle at 30% 30%, rgba(0, 212, 255, 0.15), rgba(0, 212, 255, 0.05));
+  border: 2px solid rgba(0, 212, 255, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   position: absolute;
   bottom: 0;
   left: 0;
+  box-shadow:
+    0 0 20px rgba(0, 212, 255, 0.15),
+    inset 0 0 30px rgba(0, 212, 255, 0.05);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.joystick-base.active {
+  border-color: rgba(0, 212, 255, 0.7);
+  box-shadow:
+    0 0 30px rgba(0, 212, 255, 0.3),
+    inset 0 0 30px rgba(0, 212, 255, 0.1);
 }
 
 .joystick-dot {
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: rgba(0, 212, 255, 0.5);
-  border: 2px solid rgba(0, 212, 255, 0.8);
+  background: radial-gradient(circle at 35% 35%, rgba(0, 212, 255, 0.8), rgba(0, 150, 200, 0.6));
+  border: 2px solid rgba(0, 212, 255, 1);
+  box-shadow:
+    0 0 15px rgba(0, 212, 255, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.3);
+  transition: transform 0.05s ease-out;
+  will-change: transform;
 }
 
 .action-area {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: 150px;
-  height: 150px;
+  bottom: 25px;
+  right: 25px;
   pointer-events: auto;
   display: flex;
   align-items: flex-end;
@@ -253,44 +339,94 @@ onUnmounted(() => {
 
 .action-buttons {
   display: flex;
-  flex-direction: column;
-  gap: 15px;
+  gap: 12px;
   align-items: center;
 }
 
 .action-btn {
-  width: 60px;
-  height: 60px;
+  width: 65px;
+  height: 65px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(0, 212, 255, 0.3);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05));
+  border: 2px solid rgba(0, 212, 255, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 1.5rem;
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.6rem;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   transition: all 0.15s;
   pointer-events: auto;
+  box-shadow:
+    0 4px 15px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+}
+
+@keyframes ripple-effect {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
+}
+
+.ripple.active {
+  animation: ripple-effect 0.45s ease-out forwards;
+  pointer-events: none;
+}
+
+.jump-btn .ripple {
+  background: radial-gradient(circle, rgba(0, 212, 255, 0.9) 0%, transparent 70%);
+}
+
+.attack-btn .ripple {
+  background: radial-gradient(circle, rgba(255, 80, 80, 0.9) 0%, transparent 70%);
 }
 
 .action-btn:active {
-  background: rgba(0, 212, 255, 0.3);
-  border-color: rgba(0, 212, 255, 0.8);
-  transform: scale(0.95);
+  background: rgba(0, 212, 255, 0.35);
+  border-color: rgba(0, 212, 255, 0.9);
+  transform: scale(0.92);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(0, 212, 255, 0.4);
 }
 
 .attack-btn {
-  border-color: rgba(255, 100, 100, 0.5);
+  border-color: rgba(255, 120, 120, 0.45);
+  box-shadow:
+    0 4px 15px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .attack-btn:active {
-  background: rgba(255, 100, 100, 0.3);
-  border-color: rgba(255, 100, 100, 0.8);
+  background: rgba(255, 80, 80, 0.35);
+  border-color: rgba(255, 100, 100, 0.9);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(255, 100, 100, 0.4);
 }
 
 .btn-icon {
-  text-shadow: 0 0 10px currentColor;
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 </style>

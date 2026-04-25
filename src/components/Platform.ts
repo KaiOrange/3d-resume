@@ -124,9 +124,9 @@ export class Platform {
     // Cubes - some with wood, some with cyan glow
     const cubePositions = [
       new THREE.Vector3(-15, 1.5, -15),
-      new THREE.Vector3(12, 1.5, 10),
-      new THREE.Vector3(-10, 1, 18),
-      new THREE.Vector3(18, 1, -8),
+      new THREE.Vector3(15, 1.5, 15),
+      new THREE.Vector3(-15, 1, 15),
+      new THREE.Vector3(18, 1, -18),
     ]
 
     cubePositions.forEach((pos, idx) => {
@@ -170,9 +170,9 @@ export class Platform {
 
     // Cylinders
     const cylinderPositions = [
-      new THREE.Vector3(15, 1.5, -12),
-      new THREE.Vector3(-15, 1, 8),
-      new THREE.Vector3(8, 1, -18),
+      new THREE.Vector3(-12, 1.5, -12),
+      new THREE.Vector3(12, 1.5, 12),
+      new THREE.Vector3(16, 1, 0),
     ]
 
     cylinderPositions.forEach(pos => {
@@ -203,9 +203,9 @@ export class Platform {
 
     // Spheres (with high friction to stop eventually)
     const spherePositions = [
-      new THREE.Vector3(6, 2, -6),
-      new THREE.Vector3(-6, 2, 12),
-      new THREE.Vector3(10, 2, 15),
+      new THREE.Vector3(-8, 2, 8),
+      new THREE.Vector3(8, 2, 8),
+      new THREE.Vector3(8, 2, -8),
     ]
 
     spherePositions.forEach(pos => {

@@ -18,9 +18,7 @@ export class DestructibleBricks {
   private wallPosition: THREE.Vector3
   private respawnDelay = 5.0
   private attackCooldown = 0
-  private isInitialized = false
-  private initTimer = 0
-  private readonly INIT_DELAY = 0.5  // Seconds before bricks become dynamic
+  private isActivated = false  // Bricks stay static until something touches them
   private brickMaterial: CANNON.Material
 
   constructor(scene: THREE.Scene, world: CANNON.World, position: THREE.Vector3) {
@@ -49,7 +47,7 @@ export class DestructibleBricks {
     // Center the wall properly
     const totalWidth = bricksPerRow * this.brickWidth
     const startX = this.wallPosition.x - totalWidth / 2 + this.brickWidth / 2
-    const startY = this.wallPosition.y + this.brickHeight / 2 + 0.01
+    const startY = this.wallPosition.y + this.brickHeight / 2
     const startZ = this.wallPosition.z
 
     // Load stone texture
@@ -86,17 +84,17 @@ export class DestructibleBricks {
     mesh.receiveShadow = true
     this.scene.add(mesh)
 
-    // Cannon-es body
+    // Cannon-es body - start with mass 0 (static)
     const shape = new CANNON.Box(new CANNON.Vec3(this.brickWidth / 2, this.brickHeight / 2, this.brickDepth / 2))
     const body = new CANNON.Body({
-      mass: 2,
+      mass: 0,  // Static initially
       material: this.brickMaterial,
-      linearDamping: 0.3,
-      angularDamping: 0.5,
+      linearDamping: 0.5,
+      angularDamping: 0.6,
     })
     body.addShape(shape)
     body.position.set(x, y, z)
-    body.type = CANNON.Body.STATIC  // Start as static
+    body.type = CANNON.Body.STATIC
     this.world.addBody(body)
 
     this.bricks.push({
@@ -107,20 +105,24 @@ export class DestructibleBricks {
     })
   }
 
-  public update(delta: number, robotPosition: THREE.Vector3, isAttacking: boolean) {
-    const attackRadius = 4.0
+  public update(delta: number, robotPosition: THREE.Vector3, isAttacking: boolean, robotForward: THREE.Vector3) {
+    const attackRadius = 2.5
 
-    // Initialize bricks after a short delay - make them dynamic
-    if (!this.isInitialized) {
-      this.initTimer += delta
-      if (this.initTimer >= this.INIT_DELAY) {
+    // Check if player is close to the wall - activate bricks on collision
+    if (!this.isActivated) {
+      const dx = robotPosition.x - this.wallPosition.x
+      const dz = robotPosition.z - this.wallPosition.z
+      const distanceToWall = Math.sqrt(dx * dx + dz * dz)
+
+      // Activate when player gets within 5 units of the wall center
+      if (distanceToWall < 5) {
+        this.isActivated = true
         for (const brick of this.bricks) {
           brick.body.type = CANNON.Body.DYNAMIC
           brick.body.mass = 2
           brick.body.updateMassProperties()
           brick.body.wakeUp()
         }
-        this.isInitialized = true
       }
     }
 
@@ -144,17 +146,20 @@ export class DestructibleBricks {
 
       // Apply attack impulse when robot attacks nearby (only once per attack)
       if (isAttacking && this.attackCooldown <= 0) {
-        const dx = brick.body.position.x - robotPosition.x
-        const dz = brick.body.position.z - robotPosition.z
-        const distance = Math.sqrt(dx * dx + dz * dz)
+        const bx = brick.body.position.x - robotPosition.x
+        const bz = brick.body.position.z - robotPosition.z
+        const distance = Math.sqrt(bx * bx + bz * bz)
 
-        if (distance < attackRadius) {
-          // Reduced force - just enough to nudge the brick
+        // Check if brick is in front of robot (dot product > 0)
+        const toBrick = new THREE.Vector3(bx, 0, bz).normalize()
+        const dot = toBrick.dot(robotForward)
+
+        if (distance < attackRadius && dot > 0) {
           const force = 8 / Math.max(distance, 1)
-          const impulse = new CANNON.Vec3(dx * force, force * 0.3, dz * force)
+          const impulse = new CANNON.Vec3(bx * force, force * 0.3, bz * force)
           brick.body.applyImpulse(impulse, brick.body.position)
           brick.body.wakeUp()
-          this.attackCooldown = 0.3 // Only apply once per 0.3 seconds
+          this.attackCooldown = 0.3
         }
       }
     }
@@ -167,6 +172,10 @@ export class DestructibleBricks {
     brick.body.quaternion.set(0, 0, 0, 1)
     brick.respawnTimer = 0
     brick.body.wakeUp()
+
+    // Sync mesh immediately after respawn
+    brick.mesh.position.copy(brick.body.position as unknown as THREE.Vector3)
+    brick.mesh.quaternion.copy(brick.body.quaternion as unknown as THREE.Quaternion)
   }
 
   public getBricks(): Brick[] {

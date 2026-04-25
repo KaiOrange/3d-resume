@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { Game } from './Game'
 import IntroOverlay from './components/ui/IntroOverlay.vue'
 import MobileControls from './components/ui/MobileControls.vue'
+import { isMobileDevice } from './utils/device'
 
 const containerRef = ref<HTMLElement>()
 const showIntro = ref(true)
@@ -13,7 +14,7 @@ const introCompleteCalled = ref(false)
 let game: Game | null = null
 
 onMounted(async () => {
-  isMobile.value = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  isMobile.value = isMobileDevice()
 
   if (containerRef.value) {
     game = new Game(containerRef.value)

@@ -34,11 +34,24 @@ export class InfoBillboards {
     const availableSpace = this.platformSize
     const startZ = -availableSpace / 2 + billboardWidth / 2
 
+    // First pass: calculate heights for all projects to find the max
+    const projectHeights: number[] = []
+    resumeData.projects.forEach((project) => {
+      const texture = createProjectTexture(project)
+      projectHeights.push(texture.image.height)
+    })
+
+    // Use the maximum height so all billboards are the same size
+    const maxHeight = Math.max(...projectHeights)
+
     resumeData.projects.forEach((project, index) => {
       const texture = createProjectTexture(project)
       texture.colorSpace = THREE.SRGBColorSpace
 
-      const geometry = new THREE.PlaneGeometry(10, 4.5)
+      // Use uniform height for all billboards (max of all projects)
+      const billboardHeight = maxHeight / (900 / billboardWidth)
+
+      const geometry = new THREE.PlaneGeometry(billboardWidth, billboardHeight)
       const material = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,

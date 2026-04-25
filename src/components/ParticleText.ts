@@ -6,6 +6,8 @@ interface Particle {
   targetPos: THREE.Vector3 | null
   originalColor: THREE.Color
   color: THREE.Color
+  startColor?: THREE.Color
+  targetColor?: THREE.Color | null
   size: number
   isGathered: boolean
   gatherProgress: number
@@ -37,6 +39,7 @@ export class ParticleText {
   private gatherStartTime = 0
   private scatterStartTime = 0
   private textTargetPositions: THREE.Vector3[] = []
+  private textTargetColors: THREE.Color[] = []
   private gatherParticleCount = 0
   private clock: THREE.Clock
 
@@ -127,6 +130,23 @@ export class ParticleText {
     this.updateBuffers()
   }
 
+  public forceGatherAtCurrentPosition(position: THREE.Vector3, lines: string[]) {
+    // Force stop scatter and restart gather at current position
+    this.isScattering = false
+    this.isShowingText = false
+
+    // Reset particles to gathered state at current position
+    for (let i = 0; i < this.activeParticleCount; i++) {
+      const p = this.particles[i]
+      p.isGathered = true
+      p.startPos.copy(p.position)
+      p.targetPos = null
+    }
+
+    // Restart gather
+    this.gatherLines(lines, position)
+  }
+
   private updateOscillation() {
     const time = this.clock.getElapsedTime()
 
@@ -160,15 +180,27 @@ export class ParticleText {
         if (!p.isGathered) {
           p.isGathered = true
           p.startPos.copy(p.position)
+          p.startColor = p.color.clone()
           p.targetPos = this.textTargetPositions[i].clone()
+
+          // Set target color from image if available
+          if (i < this.textTargetColors.length && this.textTargetColors[i]) {
+            p.targetColor = this.textTargetColors[i].clone()
+          }
         }
 
         if (p.targetPos) {
           p.position.lerpVectors(p.startPos, p.targetPos, t)
         }
+
+        // Lerp color to target color
+        if (p.targetColor) {
+          p.color.lerpColors(p.startColor || p.originalColor, p.targetColor, t)
+        }
       } else {
         p.isGathered = false
         p.targetPos = null
+        p.targetColor = null
       }
     }
 
@@ -189,11 +221,19 @@ export class ParticleText {
 
       if (p.isGathered && p.targetPos) {
         p.position.lerpVectors(p.targetPos, p.startPos, t)
+        // Also lerp color back to original
+        if (p.targetColor) {
+          p.color.lerpColors(p.targetColor, p.originalColor, t)
+        }
       }
 
       if (progress >= 1) {
         p.isGathered = false
         p.targetPos = null
+        p.targetColor = null
+        // Reset position and color completely
+        p.position.copy(p.startPos)
+        p.color.copy(p.originalColor)
       }
     }
 
@@ -320,10 +360,10 @@ export class ParticleText {
   }
 
   public gatherLines(lines: string[], targetPosition: THREE.Vector3) {
-    if (this.isGathering) return
-
+    // Force stop any ongoing scatter and restart gather
     this.isGathering = true
     this.isScattering = false
+    this.isShowingText = false
     this.gatherStartTime = performance.now() / 1000
 
     // Generate text positions first
@@ -400,6 +440,10 @@ export class ParticleText {
     return this.isGathering || this.isScattering
   }
 
+  public isScatteringState(): boolean {
+    return this.isScattering
+  }
+
   public hasTextVisible(): boolean {
     return this.isShowingText
   }
@@ -410,6 +454,180 @@ export class ParticleText {
     this.isScattering = false
     this.isShowingText = false
     this.textTargetPositions = []
+    this.textTargetColors = []
     this.gatherParticleCount = 0
+  }
+
+  public gatherImage(imagePath: string, targetPosition: THREE.Vector3) {
+    // Force stop any ongoing scatter and restart gather
+    this.isGathering = true
+    this.isScattering = false
+    this.isShowingText = false
+    this.gatherStartTime = performance.now() / 1000
+
+    console.log('Loading image:', imagePath)
+
+    // Load image and generate positions with colors
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      console.log('Image loaded, size:', img.width, img.height)
+      this.generateImagePositions(img, targetPosition)
+      this.prepareGatherForImage()
+      // Now start the gather animation
+      this.isGathering = true
+      this.gatherStartTime = performance.now() / 1000
+    }
+    img.onerror = (e) => {
+      console.error('Failed to load image:', imagePath, e)
+      this.isGathering = false
+    }
+    img.src = imagePath
+  }
+
+  private generateImagePositions(img: HTMLImageElement, centerPos: THREE.Vector3) {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')!
+    canvas.width = img.width
+    canvas.height = img.height
+
+    ctx.drawImage(img, 0, 0)
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const pixels = imageData.data
+
+    this.textTargetPositions = []
+    this.textTargetColors = []
+
+    // World scale - image will appear in front of north platform, smaller like south text
+    const worldScale = 0.1
+    const imgWidthWorld = img.width * worldScale
+    const imgHeightWorld = img.height * worldScale
+
+    // Sample step - sample every pixel for full coverage
+    const sampleStep = 1
+
+    // Collect all valid pixels
+    const validPixels: { x: number; y: number; r: number; g: number; b: number }[] = []
+
+    for (let y = 0; y < canvas.height; y += sampleStep) {
+      for (let x = 0; x < canvas.width; x += sampleStep) {
+        const i = (y * canvas.width + x) * 4
+        const alpha = pixels[i + 3]
+
+        // Skip fully transparent pixels
+        if (alpha < 50) continue
+
+        const r = pixels[i] / 255
+        const g = pixels[i + 1] / 255
+        const b = pixels[i + 2] / 255
+
+        // Skip very dark/black pixels
+        const brightness = (r + g + b) / 3
+        if (brightness < 0.15) continue
+
+        validPixels.push({ x, y, r, g, b })
+      }
+    }
+
+    // Use only 80% of particles for the image (randomly sample)
+    const PARTICIPATION_RATIO = 0.5
+    const targetParticleCount = Math.floor(validPixels.length * PARTICIPATION_RATIO)
+    const shuffled = validPixels.sort(() => Math.random() - 0.5)
+    const sampledPixels = shuffled.slice(0, Math.min(targetParticleCount, shuffled.length))
+
+    // Sort pixels by brightness/color to create more cohesive regions
+    sampledPixels.sort((a, b) => {
+      const brightnessA = (a.r + a.g + a.b) / 3
+      const brightnessB = (b.r + b.g + b.b) / 3
+      return brightnessA - brightnessB
+    })
+
+    for (const pixel of sampledPixels) {
+      // Map pixel to world position (no mirror)
+      const worldX = ((pixel.x - canvas.width / 2) / canvas.width) * imgWidthWorld
+      const worldY = ((canvas.height / 2 - pixel.y) / canvas.height) * imgHeightWorld
+
+      // Small jitter to break grid pattern
+      const jitterX = (Math.random() - 0.5) * 0.15
+      const jitterY = (Math.random() - 0.5) * 0.15
+
+      this.textTargetPositions.push(new THREE.Vector3(
+        centerPos.x + worldX + jitterX,
+        centerPos.y + worldY + jitterY,
+        centerPos.z
+      ))
+      this.textTargetColors.push(new THREE.Color(pixel.r, pixel.g, pixel.b))
+    }
+
+    console.log('Generated image positions:', this.textTargetPositions.length, '(from', validPixels.length, 'valid pixels, using 80%)')
+  }
+
+  private prepareGatherForImage() {
+    const textPosCount = this.textTargetPositions.length
+    const PARTICIPATION_RATIO = 0.9
+
+    // Calculate how many particles should participate (80% of active particles)
+    const targetParticipatingCount = Math.floor(this.activeParticleCount * PARTICIPATION_RATIO)
+
+    // Only generate particles if 80% of current particles is less than textPosCount
+    // (meaning we need more particles to have enough 80% to cover the image)
+    const minParticlesNeeded = Math.max(textPosCount, targetParticipatingCount)
+
+    if (minParticlesNeeded > this.activeParticleCount && this.activeParticleCount < MAX_PARTICLES) {
+      const deficit = Math.min(minParticlesNeeded - this.activeParticleCount, MAX_PARTICLES - this.activeParticleCount)
+
+      for (let i = 0; i < deficit; i++) {
+        const angle = Math.random() * Math.PI * 2
+        const radius = 20 + Math.random() * 50
+        const spawnPos = new THREE.Vector3(
+          Math.cos(angle) * radius,
+          Math.random() * 30 + 10,
+          Math.sin(angle) * radius
+        )
+
+        // Use random color from image's color palette
+        const randomIndex = Math.floor(Math.random() * this.textTargetColors.length)
+        const color = this.textTargetColors[randomIndex].clone()
+
+        const pooledParticle: Particle = {
+          position: spawnPos.clone(),
+          startPos: spawnPos.clone(),
+          targetPos: null,
+          originalColor: color.clone(),
+          color: color.clone(),
+          size: 0.05 + Math.random() * 0.1,
+          isGathered: false,
+          gatherProgress: 0,
+          oscillationOffset: Math.random() * Math.PI * 2,
+          oscillationPhase: Math.random() * Math.PI * 2,
+          isVisible: true,
+          isPooled: true,
+          spawnPosition: spawnPos.clone(),
+        }
+
+        this.particles.push(pooledParticle)
+        this.activeParticleCount++
+      }
+    }
+
+    // Only 80% of particles participate in forming the image
+    this.gatherParticleCount = Math.min(targetParticipatingCount, textPosCount)
+
+    for (let i = 0; i < this.activeParticleCount; i++) {
+      const p = this.particles[i]
+      p.isGathered = false
+      p.gatherProgress = 0
+      p.targetPos = null
+      p.targetColor = null
+      p.isVisible = true
+      // Reset pooled particles to spawn position
+      if (p.isPooled) {
+        p.position.copy(p.spawnPosition)
+        p.startPos.copy(p.spawnPosition)
+        p.color.copy(p.originalColor)
+      }
+    }
+
+    console.log(`Gathering image with ${this.gatherParticleCount} particles`)
   }
 }

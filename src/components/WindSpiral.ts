@@ -116,24 +116,24 @@ export class WindSpiral {
 
     // Calculate distance to player
     const dist = playerPosition.distanceTo(this.zonePosition)
-    const activationRadius = 8
+    const activationRadius = 16  // Doubled from 8 to 16
 
-    // Calculate target intensity - always show some particles
-    let targetIntensity = 0.3 // Minimum base intensity
+    // Always show some particles when near, full intensity when on zone
+    let targetIntensity = 0.0
     if (isOnZone) {
       targetIntensity = 1.0
     } else if (dist < activationRadius) {
-      targetIntensity = 0.3 + (1 - dist / activationRadius) * 0.4
+      targetIntensity = 0.25 + (1 - dist / activationRadius) * 0.25
     }
 
     // Smooth intensity transition
     this.intensity += (targetIntensity - this.intensity) * delta * 5
     this.intensity = Math.max(0, Math.min(1.0, this.intensity))
 
-    // Always visible when intensity > minimum
-    this.spriteGroup.visible = this.intensity > 0.1
+    // Only visible when has intensity
+    this.spriteGroup.visible = this.intensity > 0.05
 
-    if (this.intensity > 0.1) {
+    if (this.intensity > 0.05) {
       // Speed up significantly when on zone
       const speedMult = isOnZone ? 4.0 : 1.0
 

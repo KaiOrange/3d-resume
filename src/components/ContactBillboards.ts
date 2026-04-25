@@ -232,15 +232,30 @@ export class ContactBillboards {
 
   public update(delta: number, robotPosition: THREE.Vector3, isAttacking: boolean) {
     if (isAttacking) {
+      const maxDistance = 3.0   // Max distance to click
+
       for (const billboard of this.billboards) {
-        const dist = robotPosition.distanceTo(billboard.position)
-        if (dist < 4) {
+        // Get billboard world position
+        const billboardPos = billboard.mesh.position
+
+        // Vector from billboard to robot (horizontal only)
+        const dx = robotPosition.x - billboardPos.x
+        const dz = robotPosition.z - billboardPos.z
+        const dist = Math.sqrt(dx * dx + dz * dz)
+
+        if (dist > maxDistance) continue
+
+        // Billboard rotation.y = PI/2 means it faces +X direction
+        // So robot must be on +X side (robot.x > billboard.x) to be in front
+        // And within sign's Z range (|dz| < signWidth * 1.5)
+        const signWidth = 1.2
+        if (robotPosition.x > billboardPos.x && Math.abs(dz) < signWidth * 1.5) {
           if (billboard.url.startsWith('http')) {
             window.open(billboard.url, '_blank')
           } else if (billboard.url.startsWith('mailto:')) {
             window.location.href = billboard.url
           }
-          break
+          break  // Only click one billboard at a time
         }
       }
     }

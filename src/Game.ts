@@ -34,6 +34,7 @@ export class Game {
   private specialZones!: SpecialZones
   private destructibleBricks!: DestructibleBricks
   private windSpiral!: WindSpiral
+  private northWindSpiral!: WindSpiral
   private infoBillboards!: InfoBillboards
   private contactBillboards!: ContactBillboards
 
@@ -43,6 +44,7 @@ export class Game {
   private mobileMoveDirection = { x: 0, z: 0 }
   private texturesLoaded = false
   private wasOnZone = false
+  private wasOnNorthZone = false
 
   constructor(container: HTMLElement) {
     this.clock = new THREE.Clock()
@@ -133,6 +135,10 @@ export class Game {
     this.windSpiral = new WindSpiral(this.scene)
     this.windSpiral.createSpiralForZone(this.specialZones.getMainZonePosition(), '#00d4ff')
 
+    // Wind Spiral for north zone
+    this.northWindSpiral = new WindSpiral(this.scene)
+    this.northWindSpiral.createSpiralForZone(this.specialZones.getNorthZonePosition(), '#00d4ff')
+
     // Info Billboards with resume data
     this.infoBillboards = new InfoBillboards(this.scene, this.platform.getSize())
     this.infoBillboards.create()
@@ -167,6 +173,10 @@ export class Game {
 
   private setupInput() {
     window.addEventListener('keydown', (e) => {
+      // Prevent arrow keys from triggering browser search/address bar
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault()
+      }
       this.keys[e.code] = true
     })
     window.addEventListener('keyup', (e) => {
@@ -190,10 +200,17 @@ export class Game {
       if (e.button === 0 && document.pointerLockElement === this.renderer.domElement) {
         this.keys['KeyJ'] = true
       }
+      // Right click for jump
+      if (e.button === 2) {
+        this.keys['Space'] = true
+      }
     })
     window.addEventListener('mouseup', (e) => {
       if (e.button === 0) {
         this.keys['KeyJ'] = false
+      }
+      if (e.button === 2) {
+        this.keys['Space'] = false
       }
     })
   }
@@ -213,11 +230,11 @@ export class Game {
     // Only build input when enabled
     let forward = false, backward = false, left = false, right = false, jump = false, attack = false
     if (inputEnabled) {
-      forward = this.keys['KeyW'] || this.keys['ArrowUp'] || this.mobileMoveDirection.z < -0.3
-      backward = this.keys['KeyS'] || this.keys['ArrowDown'] || this.mobileMoveDirection.z > 0.3
+      forward = this.keys['KeyW'] || this.keys['ArrowUp'] || this.mobileMoveDirection.z > 0.3
+      backward = this.keys['KeyS'] || this.keys['ArrowDown'] || this.mobileMoveDirection.z < -0.3
       left = this.keys['KeyA'] || this.keys['ArrowLeft'] || this.mobileMoveDirection.x < -0.3
       right = this.keys['KeyD'] || this.keys['ArrowRight'] || this.mobileMoveDirection.x > 0.3
-      jump = this.keys['Space']
+      jump = this.keys['Space'] || this.keys['KeyK']
       attack = this.keys['KeyJ']
     }
 
@@ -251,28 +268,57 @@ export class Game {
 
     // Check special zone - show profile name when on the circle
     const activeZone = this.specialZones.checkZone(this.character.getPosition())
-    const isOnZone = activeZone !== null
+    const isOnMainZone = activeZone?.id === 'main'
+    const isOnNorthZone = activeZone?.id === 'north'
+    const isOnZone = isOnMainZone || isOnNorthZone
 
     // Update character zone state for animation
     this.character.setOnZone(isOnZone)
 
     // Trigger zone effects
-    if (isOnZone) {
-      // Show name in sky when on the circle
-      if (!this.wasOnZone && !this.particleText.isActive()) {
-        this.particleText.gatherLines([resumeData.profile.name], this.specialZones.getMainZonePosition())
+    if (isOnMainZone) {
+      // South zone: show name in sky
+      if (!this.wasOnZone) {
+        // If scatter is happening, force gather particles back immediately
+        if (this.particleText.isScatteringState()) {
+          this.particleText.gatherLines([resumeData.profile.name], this.specialZones.getMainZonePosition())
+        } else if (!this.particleText.hasTextVisible()) {
+          this.particleText.gatherLines([resumeData.profile.name], this.specialZones.getMainZonePosition())
+        }
       }
       this.wasOnZone = true
+      this.wasOnNorthZone = false
+    } else if (isOnNorthZone) {
+      // North zone: show me.png image
+      if (!this.wasOnNorthZone) {
+        // If scatter is happening, force gather particles back immediately
+        if (this.particleText.isScatteringState()) {
+          const northPos = this.specialZones.getNorthZonePosition()
+          northPos.y += 18
+          northPos.z -= 50
+          this.particleText.gatherImage('/images/me.png', northPos)
+        } else if (!this.particleText.hasTextVisible()) {
+          const northPos = this.specialZones.getNorthZonePosition()
+          northPos.y += 18
+          northPos.z -= 50
+          this.particleText.gatherImage('/images/me.png', northPos)
+        }
+      }
+      this.wasOnNorthZone = true
+      this.wasOnZone = false
     } else {
       // Scatter particles when leaving zone
-      if (this.wasOnZone && (this.particleText.isActive() || this.particleText.hasTextVisible())) {
+      if ((this.wasOnZone || this.wasOnNorthZone) &&
+          (this.particleText.isActive() || this.particleText.hasTextVisible())) {
         this.particleText.scatter()
       }
       this.wasOnZone = false
+      this.wasOnNorthZone = false
     }
 
-    // Update wind spiral effects
-    this.windSpiral.update(delta, this.character.getPosition(), attack, isOnZone)
+    // Update wind spiral effects - each zone only activates when on THAT specific zone
+    this.windSpiral.update(delta, this.character.getPosition(), attack, isOnMainZone)
+    this.northWindSpiral.update(delta, this.character.getPosition(), attack, isOnNorthZone)
 
     // Update special zones visual effects
     this.specialZones.update(delta)
@@ -281,7 +327,7 @@ export class Game {
     this.contactBillboards.update(delta, this.character.getPosition(), attack)
 
     // Update destructible bricks (pass attack state)
-    this.destructibleBricks.update(delta, this.character.getPosition(), attack)
+    this.destructibleBricks.update(delta, this.character.getPosition(), attack, this.character.getForwardDirection())
 
     // Update camera
     this.cameraController.update(delta)

@@ -35,12 +35,20 @@ export class SpecialZones {
   public create() {
     const halfSize = this.platformSize / 2
 
-    // Single zone at south center - GTA mission style
+    // South zone - GTA mission style
     this.createZone({
       id: 'main',
       localPosition: new THREE.Vector3(0, 0.02, halfSize - 8),
       radius: 2.5,
       color: '#ff6600', // Orange mission marker color
+    })
+
+    // North zone - symmetric to south, orange color
+    this.createZone({
+      id: 'north',
+      localPosition: new THREE.Vector3(0, 0.02, -halfSize + 8),
+      radius: 2.5,
+      color: '#ff6600', // Orange color
     })
   }
 
@@ -315,5 +323,9 @@ export class SpecialZones {
 
   public getMainZonePosition(): THREE.Vector3 {
     return this.zones[0]?.worldPosition.clone() || new THREE.Vector3(0, 0, 20)
+  }
+
+  public getNorthZonePosition(): THREE.Vector3 {
+    return this.zones[1]?.worldPosition.clone() || new THREE.Vector3(0, 0, -20)
   }
 }
