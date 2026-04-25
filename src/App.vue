@@ -55,6 +55,9 @@ onMounted(async () => {
   if (isMobile.value) {
     checkOrientation()
     setupOrientationListener()
+
+    // Listen for first user interaction to trigger landscape
+    window.addEventListener('landscape-init', checkOrientation)
   }
 
   if (containerRef.value) {

@@ -14,9 +14,25 @@
       html, body, #app { width: 100%; height: 100%; overflow: hidden; }
     </style>
     <script>
-      if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('landscape').catch(() => {});
+      async function lockLandscape() {
+        if (screen.orientation && screen.orientation.lock) {
+          try {
+            await screen.orientation.lock('landscape')
+          } catch (e) {
+            console.log('Lock landscape failed:', e)
+          }
+        }
       }
+
+      // First user interaction: try lock + rotate to landscape
+      function handleFirstInteraction() {
+        lockLandscape()
+        // Emit custom event for app to rotate
+        window.dispatchEvent(new CustomEvent('landscape-init'))
+      }
+
+      document.addEventListener('click', handleFirstInteraction, { once: true })
+      document.addEventListener('touchstart', handleFirstInteraction, { once: true })
     </script>
   </head>
   <body>
