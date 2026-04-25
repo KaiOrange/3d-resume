@@ -177,6 +177,14 @@ function callComplete() {
             <div class="control-label">左侧摇杆<br/>移动</div>
           </div>
           <div class="control-item">
+            <div class="control-icon look">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </div>
+            <div class="control-label">滑动屏幕<br/>转动视角</div>
+          </div>
+          <div class="control-item">
             <div class="control-icon attack">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M6 6l12 12M18 6L6 18"/>
@@ -377,6 +385,12 @@ function callComplete() {
   background: rgba(0, 212, 255, 0.1);
   border-color: rgba(0, 212, 255, 0.35);
   color: #00d4ff;
+}
+
+.control-icon.look {
+  background: rgba(180, 100, 255, 0.1);
+  border-color: rgba(180, 100, 255, 0.35);
+  color: #b464ff;
 }
 
 .control-label {

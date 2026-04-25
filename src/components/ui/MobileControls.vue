@@ -136,6 +136,9 @@ function handleLookTouchStart(e: TouchEvent) {
   lookTouchId.value = touch.identifier
   lookStartX.value = touch.clientX
   lookStartY.value = touch.clientY
+
+  // Prevent default to stop browser swipe/back gestures
+  e.preventDefault()
 }
 
 function handleLookTouchMove(e: TouchEvent) {
@@ -157,6 +160,7 @@ function handleLookTouchMove(e: TouchEvent) {
       break
     }
   }
+  e.preventDefault()
 }
 
 function handleLookTouchEnd(e: TouchEvent) {
@@ -167,6 +171,7 @@ function handleLookTouchEnd(e: TouchEvent) {
       break
     }
   }
+  e.preventDefault()
 }
 
 function handleJump() {
@@ -199,6 +204,13 @@ onMounted(() => {
     lookArea.addEventListener('touchend', handleLookTouchEnd, { passive: false })
     lookArea.addEventListener('touchcancel', handleLookTouchEnd, { passive: false })
   }
+
+  // Prevent default touch behaviors on the whole mobile-controls
+  document.addEventListener('touchmove', (e) => {
+    if (lookTouchId.value !== null) {
+      e.preventDefault()
+    }
+  }, { passive: false })
 })
 
 onUnmounted(() => {
