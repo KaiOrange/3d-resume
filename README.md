@@ -4,7 +4,7 @@
 
 ## 预览
 
-![3D Resume](docs/preview.png)
+在线预览: [https://resume.kai666666.com/](https://resume.kai666666.com/)
 
 ## 功能特性
 
