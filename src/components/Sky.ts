@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { isMobileDevice } from '../utils/device'
 
 export class Sky {
   private skySphere!: THREE.Mesh
@@ -17,7 +18,8 @@ export class Sky {
   public loadTexture(): Promise<void> {
     return new Promise((resolve) => {
       const loader = new THREE.TextureLoader()
-      loader.load('/textures/2k_stars_milky_way.jpg', (texture) => {
+      const texturePath = isMobileDevice() ? '/textures/2k_stars_milky_way.jpg' : '/textures/8k_stars_milky_way.jpg'
+      loader.load(texturePath, (texture) => {
         texture.minFilter = THREE.LinearFilter
         texture.magFilter = THREE.LinearFilter
         this.skyTexture = texture
@@ -28,7 +30,7 @@ export class Sky {
 
   public create() {
     // Sky dome that follows camera - large enough to not block nebula
-    const skyGeom = new THREE.SphereGeometry(10000, 32, 32)
+    const skyGeom = new THREE.SphereGeometry(500, 64, 64)
     const skyMat = new THREE.MeshBasicMaterial({
       map: this.skyTexture || undefined,
       side: THREE.BackSide,
@@ -40,11 +42,18 @@ export class Sky {
     this.scene.add(this.skySphere)
   }
 
-  public update(delta: number) {
+  public update(_delta: number) {
     // Sky follows camera exactly - no lag
     if (this.camera) {
       const camPos = this.camera.position
       this.skySphere.position.set(camPos.x, camPos.y, camPos.z)
     }
+  }
+
+  public dispose() {
+    this.scene.remove(this.skySphere)
+    this.skySphere.geometry.dispose()
+    ;(this.skySphere.material as THREE.MeshBasicMaterial).map?.dispose()
+    ;(this.skySphere.material as THREE.MeshBasicMaterial).dispose()
   }
 }

@@ -1,10 +1,11 @@
 import * as THREE from 'three'
 import * as CANNON from 'cannon-es'
+import { copyVec3, copyQuat } from '../utils/sync'
 
 export class Platform {
   private scene: THREE.Scene
   private world: CANNON.World
-  private platformSize = 50
+  private platformSize = 54
   private wallHeight = 2
   private spawnPoint = new THREE.Vector3(0, 1.5, 0)
   private objectMaterial: CANNON.Material
@@ -91,8 +92,16 @@ export class Platform {
     const wallPositions = [
       { pos: [0, this.wallHeight / 2, -halfSize], rot: [0, 0, 0], size: [this.platformSize, this.wallHeight, 0.1] },
       { pos: [0, this.wallHeight / 2, halfSize], rot: [0, 0, 0], size: [this.platformSize, this.wallHeight, 0.1] },
-      { pos: [-halfSize, this.wallHeight / 2, 0], rot: [0, Math.PI / 2, 0], size: [this.platformSize, this.wallHeight, 0.1] },
-      { pos: [halfSize, this.wallHeight / 2, 0], rot: [0, Math.PI / 2, 0], size: [this.platformSize, this.wallHeight, 0.1] },
+      {
+        pos: [-halfSize, this.wallHeight / 2, 0],
+        rot: [0, Math.PI / 2, 0],
+        size: [this.platformSize, this.wallHeight, 0.1],
+      },
+      {
+        pos: [halfSize, this.wallHeight / 2, 0],
+        rot: [0, Math.PI / 2, 0],
+        size: [this.platformSize, this.wallHeight, 0.1],
+      },
     ]
 
     wallPositions.forEach(({ pos, rot, size }) => {
@@ -123,10 +132,10 @@ export class Platform {
 
     // Cubes - some with wood, some with cyan glow
     const cubePositions = [
-      new THREE.Vector3(-15, 1.5, -15),
-      new THREE.Vector3(15, 1.5, 15),
-      new THREE.Vector3(-15, 1, 15),
-      new THREE.Vector3(18, 1, -18),
+      new THREE.Vector3(-18, 1.5, -18),
+      new THREE.Vector3(18, 1.5, 18),
+      new THREE.Vector3(6, 1, -12),
+      new THREE.Vector3(-6, 1, 12),
     ]
 
     cubePositions.forEach((pos, idx) => {
@@ -170,12 +179,12 @@ export class Platform {
 
     // Cylinders
     const cylinderPositions = [
-      new THREE.Vector3(-12, 1.5, -12),
-      new THREE.Vector3(12, 1.5, 12),
-      new THREE.Vector3(16, 1, 0),
+      new THREE.Vector3(-18, 1.5, 6),
+      new THREE.Vector3(18, 1.5, -6),
+      new THREE.Vector3(8, 1, -18),
     ]
 
-    cylinderPositions.forEach(pos => {
+    cylinderPositions.forEach((pos) => {
       const cylGeom = new THREE.CylinderGeometry(1, 1, 3, 16)
       const cylMat = new THREE.MeshStandardMaterial({
         color: 0x7b2fff,
@@ -202,13 +211,9 @@ export class Platform {
     })
 
     // Spheres (with high friction to stop eventually)
-    const spherePositions = [
-      new THREE.Vector3(-8, 2, 8),
-      new THREE.Vector3(8, 2, 8),
-      new THREE.Vector3(8, 2, -8),
-    ]
+    const spherePositions = [new THREE.Vector3(-18, 2, -6), new THREE.Vector3(18, 2, 6), new THREE.Vector3(6, 2, 12)]
 
-    spherePositions.forEach(pos => {
+    spherePositions.forEach((pos) => {
       const sphereGeom = new THREE.SphereGeometry(1, 32, 32)
       const sphereMat = new THREE.MeshStandardMaterial({
         color: 0xff6b35,
@@ -248,8 +253,8 @@ export class Platform {
 
     for (const obj of this.pushableObjects) {
       // Sync mesh with physics body
-      obj.mesh.position.copy(obj.body.position as unknown as THREE.Vector3)
-      obj.mesh.quaternion.copy(obj.body.quaternion as unknown as THREE.Quaternion)
+      copyVec3(obj.mesh.position, obj.body.position)
+      copyQuat(obj.mesh.quaternion, obj.body.quaternion)
 
       // Apply attack impulse when robot attacks nearby
       if (isAttacking && this.attackCooldown <= 0) {
@@ -266,5 +271,18 @@ export class Platform {
         }
       }
     }
+  }
+
+  public dispose() {
+    for (const obj of this.pushableObjects) {
+      this.scene.remove(obj.mesh)
+      obj.mesh.geometry.dispose()
+      if (Array.isArray(obj.mesh.material)) {
+        obj.mesh.material.forEach((m) => m.dispose())
+      } else {
+        obj.mesh.material.dispose()
+      }
+    }
+    this.pushableObjects = []
   }
 }

@@ -25,6 +25,7 @@ const GATHER_DURATION = 0.8
 const SCATTER_DURATION = 0.8
 
 export class ParticleText {
+  private scene: THREE.Scene
   private points: THREE.Points
   private geometry: THREE.BufferGeometry
   private material: THREE.PointsMaterial
@@ -44,6 +45,7 @@ export class ParticleText {
   private clock: THREE.Clock
 
   constructor(scene: THREE.Scene) {
+    this.scene = scene
     this.clock = new THREE.Clock()
     this.positions = new Float32Array(MAX_PARTICLES * 3)
     this.colors = new Float32Array(MAX_PARTICLES * 3)
@@ -71,11 +73,7 @@ export class ParticleText {
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       const angle = Math.random() * Math.PI * 2
       const radius = 20 + Math.random() * 50
-      const pos = new THREE.Vector3(
-        Math.cos(angle) * radius,
-        Math.random() * 30 + 10,
-        Math.sin(angle) * radius
-      )
+      const pos = new THREE.Vector3(Math.cos(angle) * radius, Math.random() * 30 + 10, Math.sin(angle) * radius)
 
       const hue = Math.random()
       const saturation = 0.6 + Math.random() * 0.4
@@ -116,7 +114,7 @@ export class ParticleText {
     // Already created in constructor
   }
 
-  public update(delta: number) {
+  public update(_delta: number) {
     const elapsed = performance.now() / 1000
 
     if (this.isGathering) {
@@ -336,16 +334,12 @@ export class ParticleText {
           const jitterX = (Math.random() - 0.5) * 0.8
           const jitterY = (Math.random() - 0.5) * 0.5
 
-          this.textTargetPositions.push(new THREE.Vector3(
-            centerPos.x + worldX + jitterX,
-            centerPos.y + worldY + jitterY,
-            centerPos.z
-          ))
+          this.textTargetPositions.push(
+            new THREE.Vector3(centerPos.x + worldX + jitterX, centerPos.y + worldY + jitterY, centerPos.z)
+          )
         }
       }
     }
-
-    console.log('Generated text positions:', this.textTargetPositions.length)
   }
 
   public prepareGather() {
@@ -382,11 +376,7 @@ export class ParticleText {
       for (let i = 0; i < deficit; i++) {
         const angle = Math.random() * Math.PI * 2
         const radius = 20 + Math.random() * 50
-        const spawnPos = new THREE.Vector3(
-          Math.cos(angle) * radius,
-          Math.random() * 30 + 10,
-          Math.sin(angle) * radius
-        )
+        const spawnPos = new THREE.Vector3(Math.cos(angle) * radius, Math.random() * 30 + 10, Math.sin(angle) * radius)
 
         const hue = Math.random()
         const saturation = 0.6 + Math.random() * 0.4
@@ -425,8 +415,6 @@ export class ParticleText {
       p.targetPos = null
       p.isVisible = true
     }
-
-    console.log(`Gathering with ${this.gatherParticleCount} particles (base: ${baseGatherCount}, pooled added: ${this.activeParticleCount - PARTICLE_COUNT})`)
   }
 
   public scatter() {
@@ -465,21 +453,19 @@ export class ParticleText {
     this.isShowingText = false
     this.gatherStartTime = performance.now() / 1000
 
-    console.log('Loading image:', imagePath)
-
     // Load image and generate positions with colors
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => {
-      console.log('Image loaded, size:', img.width, img.height)
       this.generateImagePositions(img, targetPosition)
       this.prepareGatherForImage()
       // Now start the gather animation
       this.isGathering = true
       this.gatherStartTime = performance.now() / 1000
     }
-    img.onerror = (e) => {
-      console.error('Failed to load image:', imagePath, e)
+    img.onerror = (_e) => {
+      // eslint-disable-next-line no-console
+      console.error('Failed to load image:', imagePath, _e)
       this.isGathering = false
     }
     img.src = imagePath
@@ -551,15 +537,17 @@ export class ParticleText {
       const jitterX = (Math.random() - 0.5) * 0.15
       const jitterY = (Math.random() - 0.5) * 0.15
 
-      this.textTargetPositions.push(new THREE.Vector3(
-        centerPos.x + worldX + jitterX,
-        centerPos.y + worldY + jitterY,
-        centerPos.z
-      ))
+      this.textTargetPositions.push(
+        new THREE.Vector3(centerPos.x + worldX + jitterX, centerPos.y + worldY + jitterY, centerPos.z)
+      )
       this.textTargetColors.push(new THREE.Color(pixel.r, pixel.g, pixel.b))
     }
+  }
 
-    console.log('Generated image positions:', this.textTargetPositions.length, '(from', validPixels.length, 'valid pixels, using 80%)')
+  public dispose() {
+    this.scene.remove(this.points)
+    this.geometry.dispose()
+    this.material.dispose()
   }
 
   private prepareGatherForImage() {
@@ -579,11 +567,7 @@ export class ParticleText {
       for (let i = 0; i < deficit; i++) {
         const angle = Math.random() * Math.PI * 2
         const radius = 20 + Math.random() * 50
-        const spawnPos = new THREE.Vector3(
-          Math.cos(angle) * radius,
-          Math.random() * 30 + 10,
-          Math.sin(angle) * radius
-        )
+        const spawnPos = new THREE.Vector3(Math.cos(angle) * radius, Math.random() * 30 + 10, Math.sin(angle) * radius)
 
         // Use random color from image's color palette
         const randomIndex = Math.floor(Math.random() * this.textTargetColors.length)
@@ -627,7 +611,5 @@ export class ParticleText {
         p.color.copy(p.originalColor)
       }
     }
-
-    console.log(`Gathering image with ${this.gatherParticleCount} particles`)
   }
 }

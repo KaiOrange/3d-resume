@@ -132,18 +132,29 @@ function callComplete() {
 
 <template>
   <Transition name="fade">
-    <div v-if="phase !== 'hidden'" class="intro-overlay" :class="{ mobile: isMobile }">
-      <canvas ref="canvasRef" class="star-canvas"></canvas>
+    <div
+      v-if="phase !== 'hidden'"
+      class="intro-overlay"
+      :class="{ mobile: isMobile }"
+      role="dialog"
+      aria-modal="true"
+      aria-label="3D简历介绍"
+    >
+      <canvas ref="canvasRef" class="star-canvas" aria-hidden="true" />
 
       <div class="title-container">
-        <div class="name-text">{{ profile.name }}</div>
+        <div class="name-text" role="heading" aria-level="1">
+          {{ profile.name }}
+        </div>
         <div class="title-label">个人简历</div>
-        <div class="subtitle-text">{{ profile.title }}</div>
+        <div class="subtitle-text">
+          {{ profile.title }}
+        </div>
       </div>
 
-      <div class="controls-hint" :class="{ mobile: isMobile }">
+      <div class="controls-hint" :class="{ mobile: isMobile }" role="region" aria-label="操作说明">
         <div class="controls-title">操作说明</div>
-        <div class="controls-grid" v-if="!isMobile">
+        <div v-if="!isMobile" class="controls-grid">
           <div class="control-item">
             <div class="wasd-keys">
               <div class="key-row">
@@ -158,6 +169,10 @@ function callComplete() {
             <div class="control-label">移动</div>
           </div>
           <div class="control-item">
+            <div class="space-key">滑动鼠标</div>
+            <div class="control-label">移动视角</div>
+          </div>
+          <div class="control-item">
             <div class="space-key">鼠标左键</div>
             <div class="control-label">攻击</div>
           </div>
@@ -166,44 +181,44 @@ function callComplete() {
             <div class="control-label">跳跃</div>
           </div>
         </div>
-        <div class="controls-grid mobile" v-else>
+        <div v-else class="controls-grid mobile">
           <div class="control-item">
             <div class="control-icon joystick">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="9"/>
-                <circle cx="12" cy="12" r="4"/>
+                <circle cx="12" cy="12" r="9" />
+                <circle cx="12" cy="12" r="4" />
               </svg>
             </div>
-            <div class="control-label">左侧摇杆<br/>移动</div>
+            <div class="control-label">左侧摇杆<br />移动</div>
           </div>
           <div class="control-item">
             <div class="control-icon look">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
+                <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             </div>
-            <div class="control-label">滑动屏幕<br/>转动视角</div>
+            <div class="control-label">滑动屏幕<br />移动视角</div>
           </div>
           <div class="control-item">
             <div class="control-icon attack">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M6 6l12 12M18 6L6 18"/>
+                <path d="M6 6l12 12M18 6L6 18" />
               </svg>
             </div>
-            <div class="control-label">×<br/>攻击</div>
+            <div class="control-label">×<br />攻击</div>
           </div>
           <div class="control-item">
             <div class="control-icon jump">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M12 19V5M5 12l7-7 7 7"/>
+                <path d="M12 19V5M5 12l7-7 7 7" />
               </svg>
             </div>
-            <div class="control-label">↑<br/>跳跃</div>
+            <div class="control-label">↑<br />跳跃</div>
           </div>
         </div>
       </div>
 
-      <button class="skip-btn" @click="skip">跳过</button>
+      <button class="skip-btn" aria-label="跳过介绍动画" @click="skip">跳过</button>
     </div>
   </Transition>
 </template>
@@ -411,8 +426,17 @@ function callComplete() {
 }
 
 @keyframes glow-pulse {
-  0%, 100% { text-shadow: 0 0 30px rgba(0, 212, 255, 0.8), 0 0 60px rgba(0, 212, 255, 0.4); }
-  50% { text-shadow: 0 0 50px rgba(0, 212, 255, 1), 0 0 100px rgba(0, 212, 255, 0.6); }
+  0%,
+  100% {
+    text-shadow:
+      0 0 30px rgba(0, 212, 255, 0.8),
+      0 0 60px rgba(0, 212, 255, 0.4);
+  }
+  50% {
+    text-shadow:
+      0 0 50px rgba(0, 212, 255, 1),
+      0 0 100px rgba(0, 212, 255, 0.6);
+  }
 }
 
 .skip-btn {

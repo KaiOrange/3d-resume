@@ -46,3 +46,6 @@ yarn-error.log*
 *.tmp
 *.temp
 .cache/
+
+# Vite local config
+*.local

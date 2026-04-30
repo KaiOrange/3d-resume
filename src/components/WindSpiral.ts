@@ -54,7 +54,7 @@ export class WindSpiral {
     return texture
   }
 
-  public createSpiralForZone(zonePosition: THREE.Vector3, color: string = '#ff1744') {
+  public createSpiralForZone(zonePosition: THREE.Vector3, _color: string = '#ff1744') {
     this.zonePosition = zonePosition.clone()
 
     // Create spark texture programmatically (no black edges)
@@ -109,14 +109,14 @@ export class WindSpiral {
     }
   }
 
-  public update(delta: number, playerPosition: THREE.Vector3, isAttacking: boolean, isOnZone: boolean) {
+  public update(delta: number, playerPosition: THREE.Vector3, _isAttacking: boolean, isOnZone: boolean) {
     if (!this.spriteGroup) return
 
     const time = this.clock.getElapsedTime()
 
     // Calculate distance to player
     const dist = playerPosition.distanceTo(this.zonePosition)
-    const activationRadius = 16  // Doubled from 8 to 16
+    const activationRadius = 16 // Doubled from 8 to 16
 
     // Always show some particles when near, full intensity when on zone
     let targetIntensity = 0.0

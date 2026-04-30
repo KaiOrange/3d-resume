@@ -7,12 +7,10 @@ export class Earth {
   private orbitRadius = 40
   private orbitSpeed = 0.08
   private angle = Math.random() * Math.PI * 2
-  private sunPosition: THREE.Vector3
   private earthTexture: THREE.Texture | null = null
 
-  constructor(scene: THREE.Scene, sunPosition: THREE.Vector3) {
+  constructor(scene: THREE.Scene, _sunPosition: THREE.Vector3) {
     this.scene = scene
-    this.sunPosition = sunPosition
   }
 
   public loadTexture(): Promise<void> {
@@ -71,5 +69,15 @@ export class Earth {
 
   public getPosition(): THREE.Vector3 {
     return this.earth.position.clone()
+  }
+
+  public dispose() {
+    this.scene.remove(this.earth)
+    this.scene.remove(this.clouds)
+    this.earth.geometry.dispose()
+    ;(this.earth.material as THREE.MeshStandardMaterial).map?.dispose()
+    ;(this.earth.material as THREE.MeshStandardMaterial).dispose()
+    this.clouds.geometry.dispose()
+    ;(this.clouds.material as THREE.MeshStandardMaterial).dispose()
   }
 }

@@ -19,14 +19,12 @@ export class ContactBillboards {
   private scene: THREE.Scene
   private billboards: ContactBillboard[] = []
   private platformSize: number
-  private clock: THREE.Clock
   private world: CANNON.World
 
   constructor(scene: THREE.Scene, world: CANNON.World, platformSize: number) {
     this.scene = scene
     this.world = world
     this.platformSize = platformSize
-    this.clock = new THREE.Clock()
   }
 
   public create(contacts: ContactInfo[]) {
@@ -42,8 +40,7 @@ export class ContactBillboards {
     // Center on west side
     const totalWidth = (contacts.length - 1) * spacing
     const startZ = -totalWidth / 2
-    const x = -halfSize + 4
-    const z = 0
+    const x = -halfSize + 2
 
     contacts.forEach((contact, index) => {
       const zPos = startZ + index * spacing
@@ -127,18 +124,12 @@ export class ContactBillboards {
     group.add(bottomEdge)
 
     // Left edge
-    const leftEdge = new THREE.Mesh(
-      new THREE.BoxGeometry(edgeThickness, signHeight, signDepth),
-      edgeColor
-    )
+    const leftEdge = new THREE.Mesh(new THREE.BoxGeometry(edgeThickness, signHeight, signDepth), edgeColor)
     leftEdge.position.set(-signWidth / 2 - edgeThickness / 2, 0, 0)
     group.add(leftEdge)
 
     // Right edge
-    const rightEdge = new THREE.Mesh(
-      new THREE.BoxGeometry(edgeThickness, signHeight, signDepth),
-      edgeColor
-    )
+    const rightEdge = new THREE.Mesh(new THREE.BoxGeometry(edgeThickness, signHeight, signDepth), edgeColor)
     rightEdge.position.set(signWidth / 2 + edgeThickness / 2, 0, 0)
     group.add(rightEdge)
 
@@ -160,10 +151,7 @@ export class ContactBillboards {
     ]
 
     corners.forEach(([cx, cy]) => {
-      const corner = new THREE.Mesh(
-        new THREE.BoxGeometry(cornerSize, cornerSize, signDepth + 0.01),
-        cornerMat
-      )
+      const corner = new THREE.Mesh(new THREE.BoxGeometry(cornerSize, cornerSize, signDepth + 0.01), cornerMat)
       corner.position.set(cx, cy, 0)
       group.add(corner)
     })
@@ -230,9 +218,9 @@ export class ContactBillboards {
     })
   }
 
-  public update(delta: number, robotPosition: THREE.Vector3, isAttacking: boolean) {
+  public update(_delta: number, robotPosition: THREE.Vector3, isAttacking: boolean) {
     if (isAttacking) {
-      const maxDistance = 3.0   // Max distance to click
+      const maxDistance = 3.0 // Max distance to click
 
       for (const billboard of this.billboards) {
         // Get billboard world position
@@ -255,7 +243,7 @@ export class ContactBillboards {
           } else if (billboard.url.startsWith('mailto:')) {
             window.location.href = billboard.url
           }
-          break  // Only click one billboard at a time
+          break // Only click one billboard at a time
         }
       }
     }
@@ -269,6 +257,22 @@ export class ContactBillboards {
     for (const billboard of this.billboards) {
       this.scene.remove(billboard.mesh)
       this.scene.remove(billboard.poleMesh)
+      billboard.mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.geometry.dispose()
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => {
+              if (m.map) m.map.dispose()
+              m.dispose()
+            })
+          } else {
+            if (child.material.map) child.material.map.dispose()
+            child.material.dispose()
+          }
+        }
+      })
+      billboard.poleMesh.geometry.dispose()
+      ;(billboard.poleMesh.material as THREE.Material).dispose()
     }
     this.billboards = []
   }

@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import * as CANNON from 'cannon-es'
+import { copyVec3, copyQuat } from '../utils/sync'
 
 interface Brick {
   mesh: THREE.Mesh
@@ -18,7 +19,7 @@ export class DestructibleBricks {
   private wallPosition: THREE.Vector3
   private respawnDelay = 5.0
   private attackCooldown = 0
-  private isActivated = false  // Bricks stay static until something touches them
+  private isActivated = false // Bricks stay static until something touches them
   private brickMaterial: CANNON.Material
 
   constructor(scene: THREE.Scene, world: CANNON.World, position: THREE.Vector3) {
@@ -87,7 +88,7 @@ export class DestructibleBricks {
     // Cannon-es body - start with mass 0 (static)
     const shape = new CANNON.Box(new CANNON.Vec3(this.brickWidth / 2, this.brickHeight / 2, this.brickDepth / 2))
     const body = new CANNON.Body({
-      mass: 0,  // Static initially
+      mass: 0, // Static initially
       material: this.brickMaterial,
       linearDamping: 0.5,
       angularDamping: 0.6,
@@ -133,8 +134,8 @@ export class DestructibleBricks {
 
     for (const brick of this.bricks) {
       // Sync mesh with physics body
-      brick.mesh.position.copy(brick.body.position as unknown as THREE.Vector3)
-      brick.mesh.quaternion.copy(brick.body.quaternion as unknown as THREE.Quaternion)
+      copyVec3(brick.mesh.position, brick.body.position)
+      copyQuat(brick.mesh.quaternion, brick.body.quaternion)
 
       // Check if brick fell off platform
       if (brick.body.position.y < -10) {
@@ -166,7 +167,7 @@ export class DestructibleBricks {
   }
 
   private respawnBrick(brick: Brick) {
-    brick.body.position.copy(brick.originalPosition as unknown as CANNON.Vec3)
+    brick.body.position.set(brick.originalPosition.x, brick.originalPosition.y, brick.originalPosition.z)
     brick.body.velocity.set(0, 0, 0)
     brick.body.angularVelocity.set(0, 0, 0)
     brick.body.quaternion.set(0, 0, 0, 1)
@@ -174,8 +175,8 @@ export class DestructibleBricks {
     brick.body.wakeUp()
 
     // Sync mesh immediately after respawn
-    brick.mesh.position.copy(brick.body.position as unknown as THREE.Vector3)
-    brick.mesh.quaternion.copy(brick.body.quaternion as unknown as THREE.Quaternion)
+    copyVec3(brick.mesh.position, brick.body.position)
+    copyQuat(brick.mesh.quaternion, brick.body.quaternion)
   }
 
   public getBricks(): Brick[] {

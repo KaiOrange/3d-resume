@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import * as CANNON from 'cannon-es'
 import { Character } from './components/Character'
 import { Platform } from './components/Platform'
 import { PhysicsWorld } from './components/PhysicsWorld'
@@ -15,6 +14,9 @@ import { DestructibleBricks } from './components/DestructibleBricks'
 import { WindSpiral } from './components/WindSpiral'
 import { InfoBillboards } from './components/InfoBillboards'
 import { ContactBillboards } from './components/ContactBillboards'
+import { ObstacleLadder } from './components/ObstacleLadder'
+import { AccelerationCarpet } from './components/AccelerationCarpet'
+import { Fireworks } from './components/Fireworks'
 import { resumeData } from './data/resumeData'
 
 export class Game {
@@ -37,17 +39,43 @@ export class Game {
   private northWindSpiral!: WindSpiral
   private infoBillboards!: InfoBillboards
   private contactBillboards!: ContactBillboards
+  private obstacleLadder!: ObstacleLadder
+  private eastCarpet!: AccelerationCarpet
+  private westCarpet!: AccelerationCarpet
+  private fireworks!: Fireworks
+  private fireworksCooldown = 0
 
   private clock: THREE.Clock
   private keys: { [key: string]: boolean } = {}
   private mouseLookDelta = { x: 0, y: 0 }
   private mobileMoveDirection = { x: 0, z: 0 }
-  private texturesLoaded = false
   private wasOnZone = false
   private wasOnNorthZone = false
 
+  private isMobile: boolean
+
+  private animationFrameId = 0
+  private boundOnResize: () => void
+  private boundOnKeyDown: (e: KeyboardEvent) => void
+  private boundOnKeyUp: (e: KeyboardEvent) => void
+  private boundOnMouseMove: (e: MouseEvent) => void
+  private boundOnMouseDown: (e: MouseEvent) => void
+  private boundOnMouseUp: (e: MouseEvent) => void
+  private boundOnClick: () => void
+
   constructor(container: HTMLElement) {
     this.clock = new THREE.Clock()
+    this.boundOnResize = this.onResize.bind(this)
+    this.boundOnKeyDown = this.onKeyDown.bind(this)
+    this.boundOnKeyUp = this.onKeyUp.bind(this)
+    this.boundOnMouseMove = this.onMouseMove.bind(this)
+    this.boundOnMouseDown = this.onMouseDown.bind(this)
+    this.boundOnMouseUp = this.onMouseUp.bind(this)
+    this.boundOnClick = this.onClick.bind(this)
+    this.isMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      'ontouchstart' in window ||
+      navigator.maxTouchPoints > 0
     this.initRenderer(container)
     this.initScene()
     // Create Sun, Earth, Sky instances upfront (textures loaded async)
@@ -57,10 +85,10 @@ export class Game {
   }
 
   private initRenderer(container: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true })
+    this.renderer = new THREE.WebGLRenderer({ antialias: !this.isMobile })
     this.renderer.setSize(window.innerWidth, window.innerHeight)
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    this.renderer.shadowMap.enabled = true
+    this.renderer.setPixelRatio(this.isMobile ? 1 : Math.min(window.devicePixelRatio, 2))
+    this.renderer.shadowMap.enabled = !this.isMobile
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.2
@@ -79,13 +107,7 @@ export class Game {
 
   public async preloadTextures(): Promise<void> {
     // Load textures for already-created Sun, Earth, Sky
-    await Promise.all([
-      this.sun.loadTexture(),
-      this.earth.loadTexture(),
-      this.sky.loadTexture(),
-    ])
-
-    this.texturesLoaded = true
+    await Promise.all([this.sun.loadTexture(), this.earth.loadTexture(), this.sky.loadTexture()])
   }
 
   public async create(): Promise<void> {
@@ -114,7 +136,7 @@ export class Game {
     this.sky.create()
 
     // Nebula (below platform) - created after sky to render on top
-    this.nebula = new Nebula(this.scene)
+    this.nebula = new Nebula(this.scene, this.isMobile)
     this.nebula.create()
 
     // Character
@@ -144,22 +166,26 @@ export class Game {
     this.infoBillboards.create()
 
     // Contact Billboards with contact info
-    this.contactBillboards = new ContactBillboards(
-      this.scene,
-      this.physicsWorld.world,
-      this.platform.getSize()
-    )
+    this.contactBillboards = new ContactBillboards(this.scene, this.physicsWorld.world, this.platform.getSize())
     this.contactBillboards.create(resumeData.contactInfos)
 
     // Destructible Bricks - on the east side, away from other objects
-    const halfSize = this.platform.getSize() / 2
-    this.destructibleBricks = new DestructibleBricks(
-      this.scene,
-      this.physicsWorld.world,
-      new THREE.Vector3(10, 0, -10)
-    )
+    this.destructibleBricks = new DestructibleBricks(this.scene, this.physicsWorld.world, new THREE.Vector3(10, 0, -10))
     this.destructibleBricks.create()
     this.destructibleBricks.setupContactMaterials(this.character.getMaterial())
+
+    // Obstacle Ladder System
+    this.obstacleLadder = new ObstacleLadder(this.scene, this.physicsWorld.world)
+    this.obstacleLadder.create()
+
+    // Acceleration Carpets
+    this.eastCarpet = new AccelerationCarpet(this.scene, new THREE.Vector3(13.5, 0.05, 0))
+    this.eastCarpet.create()
+    this.westCarpet = new AccelerationCarpet(this.scene, new THREE.Vector3(-13.5, 0.05, 0))
+    this.westCarpet.create()
+
+    // Fireworks
+    this.fireworks = new Fireworks(this.scene)
 
     // Camera Controller
     this.cameraController = new CameraController(this.camera, this.character)
@@ -168,57 +194,62 @@ export class Game {
     this.setupInput()
 
     // Resize
-    window.addEventListener('resize', this.onResize.bind(this))
+    window.addEventListener('resize', this.boundOnResize)
   }
 
   private setupInput() {
-    window.addEventListener('keydown', (e) => {
-      // Prevent arrow keys from triggering browser search/address bar
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-        e.preventDefault()
-      }
-      this.keys[e.code] = true
-    })
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.code] = false
-    })
-
-    // Mouse look (FPS style) - click to lock pointer
-    this.renderer.domElement.addEventListener('click', () => {
-      this.renderer.domElement.requestPointerLock()
-    })
-
-    window.addEventListener('mousemove', (e) => {
-      if (document.pointerLockElement === this.renderer.domElement) {
-        this.mouseLookDelta.x += e.movementX * 0.002
-        this.mouseLookDelta.y += e.movementY * 0.002
-      }
-    })
-
-    // Mouse attack on left click - only when pointer is already locked
-    window.addEventListener('mousedown', (e) => {
-      if (e.button === 0 && document.pointerLockElement === this.renderer.domElement) {
-        this.keys['KeyJ'] = true
-      }
-      // Right click for jump
-      if (e.button === 2) {
-        this.keys['Space'] = true
-      }
-    })
-    window.addEventListener('mouseup', (e) => {
-      if (e.button === 0) {
-        this.keys['KeyJ'] = false
-      }
-      if (e.button === 2) {
-        this.keys['Space'] = false
-      }
-    })
+    window.addEventListener('keydown', this.boundOnKeyDown)
+    window.addEventListener('keyup', this.boundOnKeyUp)
+    this.renderer.domElement.addEventListener('click', this.boundOnClick)
+    window.addEventListener('mousemove', this.boundOnMouseMove)
+    window.addEventListener('mousedown', this.boundOnMouseDown)
+    window.addEventListener('mouseup', this.boundOnMouseUp)
   }
 
   private onResize() {
     this.camera.aspect = window.innerWidth / window.innerHeight
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(window.innerWidth, window.innerHeight)
+  }
+
+  private onKeyDown(e: KeyboardEvent) {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      e.preventDefault()
+    }
+    this.keys[e.code] = true
+  }
+
+  private onKeyUp(e: KeyboardEvent) {
+    this.keys[e.code] = false
+  }
+
+  private onClick() {
+    this.renderer.domElement.requestPointerLock()
+  }
+
+  private onMouseMove(e: MouseEvent) {
+    if (document.pointerLockElement === this.renderer.domElement) {
+      this.mouseLookDelta.x += e.movementX * 0.002
+      this.mouseLookDelta.y += e.movementY * 0.002
+    }
+  }
+
+  private onMouseDown(e: MouseEvent) {
+    if (e.button === 0 && document.pointerLockElement === this.renderer.domElement) {
+      this.keys['KeyJ'] = true
+    }
+    if (e.button === 2) {
+      this.keys['Space'] = true
+    }
+  }
+
+  private onMouseUp(e: MouseEvent) {
+    if (e.button === 0) {
+      this.keys['KeyJ'] = false
+    }
+    if (e.button === 2) {
+      this.keys['Space'] = false
+    }
   }
 
   public update() {
@@ -228,7 +259,12 @@ export class Game {
     const inputEnabled = this.cameraController.isFollowing()
 
     // Only build input when enabled
-    let forward = false, backward = false, left = false, right = false, jump = false, attack = false
+    let forward = false,
+      backward = false,
+      left = false,
+      right = false,
+      jump = false,
+      attack = false
     if (inputEnabled) {
       forward = this.keys['KeyW'] || this.keys['ArrowUp'] || this.mobileMoveDirection.z > 0.3
       backward = this.keys['KeyS'] || this.keys['ArrowDown'] || this.mobileMoveDirection.z < -0.3
@@ -253,7 +289,7 @@ export class Game {
     }
 
     // Update character
-    this.character.update(delta, { forward, backward, left, right, jump, attack }, this.platform)
+    this.character.update(delta, { forward, backward, left, right, jump, attack }, this.platform, this.obstacleLadder)
 
     // Update platform pushable objects
     this.platform.update(delta, this.character.getPosition(), attack)
@@ -279,11 +315,13 @@ export class Game {
     if (isOnMainZone) {
       // South zone: show name in sky
       if (!this.wasOnZone) {
+        const namePos = this.specialZones.getMainZonePosition()
+        namePos.z += 2
         // If scatter is happening, force gather particles back immediately
         if (this.particleText.isScatteringState()) {
-          this.particleText.gatherLines([resumeData.profile.name], this.specialZones.getMainZonePosition())
+          this.particleText.gatherLines([resumeData.profile.name], namePos)
         } else if (!this.particleText.hasTextVisible()) {
-          this.particleText.gatherLines([resumeData.profile.name], this.specialZones.getMainZonePosition())
+          this.particleText.gatherLines([resumeData.profile.name], namePos)
         }
       }
       this.wasOnZone = true
@@ -291,16 +329,13 @@ export class Game {
     } else if (isOnNorthZone) {
       // North zone: show me.png image
       if (!this.wasOnNorthZone) {
+        const northPos = this.specialZones.getNorthZonePosition()
+        northPos.y += 18
+        northPos.z -= 52
         // If scatter is happening, force gather particles back immediately
         if (this.particleText.isScatteringState()) {
-          const northPos = this.specialZones.getNorthZonePosition()
-          northPos.y += 18
-          northPos.z -= 50
           this.particleText.gatherImage('/images/me.png', northPos)
         } else if (!this.particleText.hasTextVisible()) {
-          const northPos = this.specialZones.getNorthZonePosition()
-          northPos.y += 18
-          northPos.z -= 50
           this.particleText.gatherImage('/images/me.png', northPos)
         }
       }
@@ -308,8 +343,10 @@ export class Game {
       this.wasOnZone = false
     } else {
       // Scatter particles when leaving zone
-      if ((this.wasOnZone || this.wasOnNorthZone) &&
-          (this.particleText.isActive() || this.particleText.hasTextVisible())) {
+      if (
+        (this.wasOnZone || this.wasOnNorthZone) &&
+        (this.particleText.isActive() || this.particleText.hasTextVisible())
+      ) {
         this.particleText.scatter()
       }
       this.wasOnZone = false
@@ -347,6 +384,38 @@ export class Game {
     // Update info billboards
     this.infoBillboards.update(delta, this.character.getPosition(), activeZone?.id || null)
 
+    // Update obstacle ladder (#6 oscillation + blink)
+    this.obstacleLadder.update(delta)
+
+    // Update carpets (glow pulse)
+    this.eastCarpet.update(delta)
+    this.westCarpet.update(delta)
+
+    // Check acceleration carpets for robot
+    const charPos = this.character.getPosition()
+    const eastBoost = this.eastCarpet.getAccelerationZ(charPos)
+    const westBoost = this.westCarpet.getAccelerationZ(charPos)
+    if (eastBoost !== null) {
+      this.character.applyExternalForceZ(eastBoost, delta)
+    }
+    if (westBoost !== null) {
+      this.character.applyExternalForceZ(westBoost, delta)
+    }
+
+    // Fireworks: keep launching while on obstacle #8
+    if (this.obstacleLadder.isOnObstacle8(charPos)) {
+      this.fireworksCooldown -= delta
+      if (this.fireworksCooldown <= 0) {
+        this.fireworks.launch(new THREE.Vector3(-Math.random() * 17, 0, 50))
+        this.fireworksCooldown = 0.8
+      }
+    } else {
+      this.fireworksCooldown = 0
+    }
+
+    // Update fireworks
+    this.fireworks.update(delta)
+
     // Render
     this.renderer.render(this.scene, this.camera)
   }
@@ -368,7 +437,7 @@ export class Game {
     this.keys['KeyJ'] = active
   }
 
-  public addMouseLook(delta: { x: number, y: number }) {
+  public addMouseLook(delta: { x: number; y: number }) {
     this.mouseLookDelta.x += delta.x
     this.mouseLookDelta.y += delta.y
   }
@@ -376,14 +445,46 @@ export class Game {
   public start() {
     this.clock.start()
     const animate = () => {
-      requestAnimationFrame(animate)
+      this.animationFrameId = requestAnimationFrame(animate)
       this.update()
     }
     animate()
   }
 
   public dispose() {
+    // Stop animation loop
+    cancelAnimationFrame(this.animationFrameId)
+
+    // Remove input listeners
+    window.removeEventListener('keydown', this.boundOnKeyDown)
+    window.removeEventListener('keyup', this.boundOnKeyUp)
+    this.renderer.domElement.removeEventListener('click', this.boundOnClick)
+    window.removeEventListener('mousemove', this.boundOnMouseMove)
+    window.removeEventListener('mousedown', this.boundOnMouseDown)
+    window.removeEventListener('mouseup', this.boundOnMouseUp)
+    window.removeEventListener('resize', this.boundOnResize)
+
+    // Dispose all components
+    this.particleText?.dispose()
+    this.nebula?.dispose()
+    this.specialZones?.dispose()
+    this.destructibleBricks?.dispose()
+    this.windSpiral?.dispose()
+    this.northWindSpiral?.dispose()
+    this.infoBillboards?.dispose()
+    this.contactBillboards?.dispose()
+    this.platform?.dispose()
+    this.sunGlow?.dispose()
+    this.earth?.dispose()
+    this.sky?.dispose()
+    this.sun?.dispose()
+
+    this.obstacleLadder?.dispose()
+    this.eastCarpet?.dispose()
+    this.westCarpet?.dispose()
+    this.fireworks?.dispose()
+
+    // Dispose renderer
     this.renderer.dispose()
-    window.removeEventListener('resize', this.onResize.bind(this))
   }
 }

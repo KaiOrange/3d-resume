@@ -62,4 +62,10 @@ export class SunGlow {
     const scale = (distance / 100) * 40
     this.sprite.scale.set(scale, scale, 1)
   }
+
+  public dispose() {
+    this.scene.remove(this.sprite)
+    ;(this.sprite.material as THREE.SpriteMaterial).map?.dispose()
+    ;(this.sprite.material as THREE.SpriteMaterial).dispose()
+  }
 }

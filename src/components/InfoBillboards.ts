@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { resumeData } from '../data/resumeData'
-import { createProfileTexture, createExperienceTexture, createProjectTexture } from '../utils/textureGenerator'
+import { createExperienceTexture, createProjectTexture } from '../utils/textureGenerator'
 
 interface BillboardPanel {
   mesh: THREE.Mesh
@@ -65,7 +65,7 @@ export class InfoBillboards {
       const yPos = 5
 
       // Position on the east side, parallel to platform (facing toward platform center -X)
-      mesh.position.set(halfSize + 8, yPos, zPos)
+      mesh.position.set(halfSize + 10, yPos, zPos)
       mesh.rotation.y = -Math.PI / 2 // Face toward platform center, flipped
       this.scene.add(mesh)
 
@@ -103,7 +103,7 @@ export class InfoBillboards {
       const yPos = 4
 
       // Position on the west side, parallel to platform
-      mesh.position.set(-halfSize - 8, yPos, zPos)
+      mesh.position.set(-halfSize - 10, yPos, zPos)
       mesh.rotation.y = Math.PI / 2
       this.scene.add(mesh)
 
@@ -115,7 +115,7 @@ export class InfoBillboards {
     })
   }
 
-  public update(delta: number, playerPosition: THREE.Vector3, activeZoneId: string | null) {
+  public update(delta: number, playerPosition: THREE.Vector3, _activeZoneId: string | null) {
     const time = this.clock.getElapsedTime()
 
     for (const billboard of this.billboards) {

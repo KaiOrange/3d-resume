@@ -14,20 +14,18 @@ export interface ZoneData {
   rotatingRing?: THREE.Mesh
   isActive?: boolean
   hueOffset?: number
-  transitionProgress?: number  // 0 = normal, 1 = fully faded
+  transitionProgress?: number // 0 = normal, 1 = fully faded
   wasActive?: boolean
 }
 
 export class SpecialZones {
   private scene: THREE.Scene
-  private platform: Platform
   private zones: ZoneData[] = []
   private platformSize: number
   private clock: THREE.Clock
 
   constructor(scene: THREE.Scene, platform: Platform) {
     this.scene = scene
-    this.platform = platform
     this.platformSize = platform.getSize()
     this.clock = new THREE.Clock()
   }
@@ -38,7 +36,7 @@ export class SpecialZones {
     // South zone - GTA mission style
     this.createZone({
       id: 'main',
-      localPosition: new THREE.Vector3(0, 0.02, halfSize - 8),
+      localPosition: new THREE.Vector3(0, 0.02, halfSize - 6),
       radius: 2.5,
       color: '#ff6600', // Orange mission marker color
     })
@@ -46,13 +44,18 @@ export class SpecialZones {
     // North zone - symmetric to south, orange color
     this.createZone({
       id: 'north',
-      localPosition: new THREE.Vector3(0, 0.02, -halfSize + 8),
+      localPosition: new THREE.Vector3(0, 0.02, -halfSize + 6),
       radius: 2.5,
       color: '#ff6600', // Orange color
     })
   }
 
-  private createZone(zone: Omit<ZoneData, 'worldPosition' | 'beamMesh' | 'baseGlow' | 'outerRing' | 'innerCore' | 'rotatingRing' | 'isActive' | 'hueOffset'>) {
+  private createZone(
+    zone: Omit<
+      ZoneData,
+      'worldPosition' | 'beamMesh' | 'baseGlow' | 'outerRing' | 'innerCore' | 'rotatingRing' | 'isActive' | 'hueOffset'
+    >
+  ) {
     const hueOffset = Math.random() * 0.1
 
     // Create glowing beam extending upward (like GTA mission column)
@@ -238,14 +241,14 @@ export class SpecialZones {
       // Animate transition when entering/leaving zone
       const targetTransition = zone.isActive ? 1 : 0
       if (zone.transitionProgress !== targetTransition) {
-        const speed = zone.isActive ? 3.0 : 2.0  // Fade out faster than fade in
+        const speed = zone.isActive ? 3.0 : 2.0 // Fade out faster than fade in
         zone.transitionProgress += (targetTransition - zone.transitionProgress) * delta * speed
         if (Math.abs(zone.transitionProgress - targetTransition) < 0.01) {
           zone.transitionProgress = targetTransition
         }
       }
 
-      const t = zone.transitionProgress  // 0 = normal, 1 = fully faded
+      const t = zone.transitionProgress // 0 = normal, 1 = fully faded
 
       // Update beam shader
       if (zone.beamMesh) {
@@ -292,7 +295,6 @@ export class SpecialZones {
   public checkZone(playerPosition: THREE.Vector3): ZoneData | null {
     for (const zone of this.zones) {
       const dist = playerPosition.distanceTo(zone.worldPosition)
-      const isNear = dist < zone.radius * 2
       const isOn = dist < zone.radius
 
       // Track state change for animation trigger
@@ -314,7 +316,7 @@ export class SpecialZones {
   }
 
   public getZone(id: string): ZoneData | undefined {
-    return this.zones.find(z => z.id === id)
+    return this.zones.find((z) => z.id === id)
   }
 
   public getZones(): ZoneData[] {
@@ -327,5 +329,36 @@ export class SpecialZones {
 
   public getNorthZonePosition(): THREE.Vector3 {
     return this.zones[1]?.worldPosition.clone() || new THREE.Vector3(0, 0, -20)
+  }
+
+  public dispose() {
+    for (const zone of this.zones) {
+      if (zone.beamMesh) {
+        this.scene.remove(zone.beamMesh)
+        zone.beamMesh.geometry.dispose()
+        ;(zone.beamMesh.material as THREE.Material).dispose()
+      }
+      if (zone.baseGlow) {
+        this.scene.remove(zone.baseGlow)
+        zone.baseGlow.geometry.dispose()
+        ;(zone.baseGlow.material as THREE.Material).dispose()
+      }
+      if (zone.outerRing) {
+        this.scene.remove(zone.outerRing)
+        zone.outerRing.geometry.dispose()
+        ;(zone.outerRing.material as THREE.Material).dispose()
+      }
+      if (zone.innerCore) {
+        this.scene.remove(zone.innerCore)
+        zone.innerCore.geometry.dispose()
+        ;(zone.innerCore.material as THREE.Material).dispose()
+      }
+      if (zone.rotatingRing) {
+        this.scene.remove(zone.rotatingRing)
+        zone.rotatingRing.geometry.dispose()
+        ;(zone.rotatingRing.material as THREE.Material).dispose()
+      }
+    }
+    this.zones = []
   }
 }

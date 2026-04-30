@@ -121,8 +121,12 @@ function handleLookTouchStart(e: TouchEvent) {
   const moveArea = moveAreaRef.value
   if (moveArea) {
     const rect = moveArea.getBoundingClientRect()
-    if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
-        touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+    if (
+      touch.clientX >= rect.left &&
+      touch.clientX <= rect.right &&
+      touch.clientY >= rect.top &&
+      touch.clientY <= rect.bottom
+    ) {
       return // Ignore touch on move area
     }
   }
@@ -177,13 +181,17 @@ function handleLookTouchEnd(e: TouchEvent) {
 function handleJump() {
   jumpRipple.value = true
   emit('jump')
-  setTimeout(() => { jumpRipple.value = false }, 450)
+  setTimeout(() => {
+    jumpRipple.value = false
+  }, 450)
 }
 
 function handleAttack() {
   attackRipple.value = true
   emit('attack')
-  setTimeout(() => { attackRipple.value = false }, 450)
+  setTimeout(() => {
+    attackRipple.value = false
+  }, 450)
 }
 
 onMounted(() => {
@@ -206,11 +214,15 @@ onMounted(() => {
   }
 
   // Prevent default touch behaviors on the whole mobile-controls
-  document.addEventListener('touchmove', (e) => {
-    if (lookTouchId.value !== null) {
-      e.preventDefault()
-    }
-  }, { passive: false })
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (lookTouchId.value !== null) {
+        e.preventDefault()
+      }
+    },
+    { passive: false }
+  )
 })
 
 onUnmounted(() => {
@@ -236,36 +248,52 @@ onUnmounted(() => {
 <template>
   <div class="mobile-controls">
     <!-- Full screen look area (catches swipes for camera rotation) -->
-    <div ref="lookAreaRef" class="look-area"></div>
+    <div ref="lookAreaRef" class="look-area" />
 
     <!-- Left side: Movement joystick -->
-    <div ref="moveAreaRef" class="move-area">
+    <div ref="moveAreaRef" class="move-area" role="slider" aria-label="移动控制">
       <div class="joystick-base" :class="{ active: isJoystickActive }">
         <div
           class="joystick-dot"
           :style="{
-            transform: `translate(${joystickDotX}px, ${joystickDotY}px)`
+            transform: `translate(${joystickDotX}px, ${joystickDotY}px)`,
           }"
-        ></div>
+        />
       </div>
     </div>
 
     <!-- Right side: Action buttons -->
     <div class="action-area">
       <div class="action-buttons">
-        <button class="action-btn attack-btn" @touchstart.prevent="handleAttack">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 6l12 12"/>
-            <path d="M18 6L6 18"/>
+        <button class="action-btn attack-btn" aria-label="攻击" @touchstart.prevent="handleAttack">
+          <svg
+            class="btn-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M6 6l12 12" />
+            <path d="M18 6L6 18" />
           </svg>
-          <span class="ripple" :class="{ active: attackRipple }"></span>
+          <span class="ripple" :class="{ active: attackRipple }" />
         </button>
-        <button class="action-btn jump-btn" @touchstart.prevent="handleJump">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 19V5"/>
-            <path d="M5 12l7-7 7 7"/>
+        <button class="action-btn jump-btn" aria-label="跳跃" @touchstart.prevent="handleJump">
+          <svg
+            class="btn-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 19V5" />
+            <path d="M5 12l7-7 7 7" />
           </svg>
-          <span class="ripple" :class="{ active: jumpRipple }"></span>
+          <span class="ripple" :class="{ active: jumpRipple }" />
         </button>
       </div>
     </div>
@@ -316,7 +344,9 @@ onUnmounted(() => {
   box-shadow:
     0 0 20px rgba(0, 212, 255, 0.15),
     inset 0 0 30px rgba(0, 212, 255, 0.05);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .joystick-base.active {

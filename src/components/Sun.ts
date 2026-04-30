@@ -105,4 +105,11 @@ export class Sun {
   public getLightDirection(): THREE.Vector3 {
     return this.sun.position.clone().normalize()
   }
+
+  public dispose() {
+    this.scene.remove(this.sun)
+    this.sun.geometry.dispose()
+    ;(this.sun.material as THREE.MeshBasicMaterial).map?.dispose()
+    ;(this.sun.material as THREE.MeshBasicMaterial).dispose()
+  }
 }

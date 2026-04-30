@@ -107,7 +107,7 @@ export class CameraController {
     this.camera.lookAt(this.currentLookAt)
   }
 
-  private updateFollow(delta: number) {
+  private updateFollow(_delta: number) {
     const robotPos = this.character.getPosition()
 
     // Calculate camera position on sphere surface

@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import * as CANNON from 'cannon-es'
 import { Platform } from './Platform'
+import { ObstacleLadder } from './ObstacleLadder'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 interface CharacterInput {
@@ -18,9 +19,9 @@ export class Character {
   private world: CANNON.World
   private charMaterial: CANNON.Material
   private moveSpeed = 6
-  private jumpForce = 15
+  private jumpForce = 12
   private isGrounded = false
-  private groundY = 1.0
+  private groundY = 0
 
   // Robot rotation around Y axis (controlled by mouse X)
   private rotationY = Math.PI
@@ -61,16 +62,18 @@ export class Character {
       this.playAnimation('Idle')
     })
 
-    const bodyShape = new CANNON.Cylinder(0.4, 0.4, 2.0, 8) // Cylinder matching visual
+    const bodyShape = new CANNON.Cylinder(0.4, 0.4, 1.0, 8)
     this.charMaterial = new CANNON.Material('character')
 
     this.body = new CANNON.Body({
       mass: 20,
       material: this.charMaterial,
       linearDamping: 0.3,
-      angularDamping: 0.99, // Prevent rotation from collisions
+      angularDamping: 0.99,
+      collisionFilterGroup: 4,
+      collisionFilterMask: 1 | 2,
     })
-    this.body.addShape(bodyShape, new CANNON.Vec3(0, 1.0, 0))
+    this.body.addShape(bodyShape, new CANNON.Vec3(0, 0.5, 0))
     this.body.position.set(spawnPoint.x, spawnPoint.y, spawnPoint.z)
     this.body.angularFactor = new CANNON.Vec3(0, 1, 0)
 
@@ -86,7 +89,6 @@ export class Character {
 
     const clip = this.animations[name]
     if (!clip) {
-      console.log('No clip found for:', name)
       return
     }
 
@@ -133,7 +135,7 @@ export class Character {
     this.wasOnZone = isOnZone
   }
 
-  public update(delta: number, input: CharacterInput, platform: Platform) {
+  public update(delta: number, input: CharacterInput, platform: Platform, obstacleLadder?: ObstacleLadder) {
     const clampedDelta = Math.min(delta, 0.1)
 
     if (this.mixer && this.animationLoaded) {
@@ -145,17 +147,45 @@ export class Character {
       this.attackCooldown -= clampedDelta
     }
 
-    // Apply platform level constraint FIRST
-    const platformLevel = 0.5
-    if (this.body.position.y < platformLevel) {
-      this.body.position.y = platformLevel
-      this.body.velocity.y = 0
-      this.body.wakeUp()
-    }
-
+    // Grounded detection: raycast for platform + direct check for obstacles
     const charY = this.body.position.y
     const verticalVelocity = this.body.velocity.y
-    this.isGrounded = charY < 2.0 && Math.abs(verticalVelocity) < 2
+    const from = new CANNON.Vec3(this.body.position.x, charY + 3.0, this.body.position.z)
+    const to = new CANNON.Vec3(this.body.position.x, charY - 2.0, this.body.position.z)
+    const result = new CANNON.RaycastResult()
+    this.world.raycastClosest(from, to, { collisionFilterMask: 1 }, result)
+
+    // Check obstacle surface (manual, no physics collision)
+    const obstacleSurfaceY = obstacleLadder?.getSurfaceY(this.getPosition()) ?? null
+
+    // Only snap when: actually falling (not rising), and feet at or below surface
+    const canSnapToObstacle =
+      obstacleSurfaceY !== null && verticalVelocity < 0 && charY <= obstacleSurfaceY + 0.1
+
+    if (canSnapToObstacle) {
+      // On an obstacle — snap to surface
+      this.groundY = obstacleSurfaceY
+      this.isGrounded = true
+      this.body.position.y = obstacleSurfaceY
+      this.body.velocity.y = 0
+      this.body.wakeUp()
+    } else if (result.hasHit) {
+      this.groundY = result.hitPointWorld.y
+      const falling = verticalVelocity <= 0.5
+      const nearSurface = charY >= this.groundY - 0.5 && charY <= this.groundY + 0.5
+      this.isGrounded = falling && nearSurface
+    } else {
+      this.isGrounded = false
+      this.groundY = -Infinity
+    }
+
+    // Prevent falling below platform
+    if (this.body.position.y < 0.5) {
+      this.body.position.y = 0.5
+      this.body.velocity.y = 0
+      this.isGrounded = true
+      this.body.wakeUp()
+    }
 
     const isMoving = input.forward || input.backward || input.left || input.right
 
@@ -205,8 +235,8 @@ export class Character {
       const right = new THREE.Vector3(-Math.cos(this.rotationY), 0, Math.sin(this.rotationY))
 
       const velocity = new THREE.Vector3()
-      velocity.x = forward.x * (-moveDirection.z) + right.x * moveDirection.x
-      velocity.z = forward.z * (-moveDirection.z) + right.z * moveDirection.x
+      velocity.x = forward.x * -moveDirection.z + right.x * moveDirection.x
+      velocity.z = forward.z * -moveDirection.z + right.z * moveDirection.x
 
       this.body.velocity.x = THREE.MathUtils.lerp(this.body.velocity.x, velocity.x * this.moveSpeed, 0.1)
       this.body.velocity.z = THREE.MathUtils.lerp(this.body.velocity.z, velocity.z * this.moveSpeed, 0.1)
@@ -221,26 +251,15 @@ export class Character {
       this.isGrounded = false
     }
 
-    // Gravity
-    if (!this.isGrounded && this.body.velocity.y > -20) {
-      this.body.velocity.y -= 15 * clampedDelta
-    }
-
-    this.mesh.position.set(
-      this.body.position.x,
-      this.body.position.y,
-      this.body.position.z
-    )
+    this.mesh.position.set(this.body.position.x, this.body.position.y, this.body.position.z)
 
     this.mesh.rotation.y = this.rotationY
     this.body.quaternion.setFromEuler(0, this.rotationY, 0)
 
-    // Keep character within platform bounds (but don't override physics if colliding)
-    const halfSize = platform.getSize() / 2 - 2
-    if (this.body.position.y > 0) { // Only clamp if not fallen
-      this.body.position.x = THREE.MathUtils.clamp(this.body.position.x, -halfSize, halfSize)
-      this.body.position.z = THREE.MathUtils.clamp(this.body.position.z, -halfSize, halfSize)
-    }
+    // Keep character within platform bounds
+    const halfSize = platform.getSize() / 2 - 1
+    this.body.position.x = THREE.MathUtils.clamp(this.body.position.x, -halfSize, halfSize)
+    this.body.position.z = THREE.MathUtils.clamp(this.body.position.z, -halfSize, halfSize)
   }
 
   public rotate(delta: number) {
@@ -260,11 +279,7 @@ export class Character {
   }
 
   public getForwardDirection(): THREE.Vector3 {
-    return new THREE.Vector3(
-      Math.sin(this.rotationY),
-      0,
-      Math.cos(this.rotationY)
-    )
+    return new THREE.Vector3(Math.sin(this.rotationY), 0, Math.cos(this.rotationY))
   }
 
   public isAttacking(): boolean {
@@ -279,6 +294,13 @@ export class Character {
     this.body.position.set(position.x, position.y, position.z)
     this.body.velocity.set(0, 0, 0)
     this.body.angularVelocity.set(0, 0, 0)
+    this.body.wakeUp()
+  }
+
+  public applyExternalForceZ(force: number, delta: number) {
+    const displacement = Math.sign(force) * 15 * delta
+    this.body.position.z += displacement
+    this.body.velocity.z = 0
     this.body.wakeUp()
   }
 }

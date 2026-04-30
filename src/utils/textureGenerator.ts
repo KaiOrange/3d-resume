@@ -243,11 +243,11 @@ export function createProjectTexture(project: ProjectData): THREE.CanvasTexture 
   const tempCtx = tempCanvas.getContext('2d')!
   tempCtx.font = '24px Microsoft YaHei, Arial, sans-serif'
 
-  descLines.forEach(line => {
+  descLines.forEach((line) => {
     const words = line.split('')
     let currentLine = ''
     const maxWidth = 820
-    words.forEach(char => {
+    words.forEach((char) => {
       const testLine = currentLine + char
       const metrics = tempCtx.measureText(testLine)
       if (metrics.width > maxWidth && currentLine !== '') {
@@ -298,7 +298,7 @@ export function createProjectTexture(project: ProjectData): THREE.CanvasTexture 
   let currentY = 120
   ctx.font = '22px Microsoft YaHei, Arial, sans-serif'
 
-  project.tech.forEach((tech, index) => {
+  project.tech.forEach((tech, _index) => {
     const tagWidth = ctx.measureText(tech).width + 30
     if (currentX + tagWidth > 860) {
       currentX = tagX

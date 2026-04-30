@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { Game } from './Game'
+
 import IntroOverlay from './components/ui/IntroOverlay.vue'
 import MobileControls from './components/ui/MobileControls.vue'
 import { isMobileDevice } from './utils/device'
@@ -12,7 +12,8 @@ const isReady = ref(false)
 const isMobile = ref(false)
 const introCompleteCalled = ref(false)
 const showRotateHint = ref(false)
-let game: Game | null = null
+let game: any = null
+let readyCheckTimeout: ReturnType<typeof setTimeout> | null = null
 
 function checkOrientation() {
   let isLandscape = false
@@ -61,6 +62,7 @@ onMounted(async () => {
   }
 
   if (containerRef.value) {
+    const { Game } = await import('./Game')
     game = new Game(containerRef.value)
     isLoading.value = true
     await game.create()
@@ -71,23 +73,22 @@ onMounted(async () => {
 })
 
 function onIntroComplete() {
-  // Guard: only allow intro complete to be called once
   if (introCompleteCalled.value) return
   introCompleteCalled.value = true
 
   showIntro.value = false
   if (game) {
-    // Wait for textures if still loading, otherwise proceed immediately
     if (isReady.value) {
       game.setIntroComplete()
     } else {
-      // Textures still loading, wait for them
-      const checkReady = setInterval(() => {
+      const checkReady = () => {
         if (isReady.value) {
-          clearInterval(checkReady)
           game?.setIntroComplete()
+        } else {
+          readyCheckTimeout = setTimeout(checkReady, 50)
         }
-      }, 50)
+      }
+      checkReady()
     }
   }
 }
@@ -120,6 +121,9 @@ function onLook(delta: { x: number; y: number }) {
 }
 
 onUnmounted(() => {
+  if (readyCheckTimeout) {
+    clearTimeout(readyCheckTimeout)
+  }
   if (game) {
     game.dispose()
   }
@@ -127,16 +131,15 @@ onUnmounted(() => {
     cleanupOrientationListener()
   }
 })
-
 </script>
 
 <template>
   <div class="app-container">
-    <div class="rotate-hint" v-if="isMobile && showRotateHint">
+    <div v-if="isMobile && showRotateHint" class="rotate-hint">
       <span>请旋转设备至横屏模式</span>
     </div>
     <IntroOverlay v-if="showIntro" @complete="onIntroComplete" />
-    <div ref="containerRef" class="game-container"></div>
+    <div ref="containerRef" class="game-container" />
     <MobileControls v-if="!showIntro && isMobile" @move="onMove" @jump="onJump" @attack="onAttack" @look="onLook" />
   </div>
 </template>

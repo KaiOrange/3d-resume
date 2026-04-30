@@ -6,15 +6,17 @@ export class Nebula {
   private galaxyMaterial!: THREE.ShaderMaterial
   private scene: THREE.Scene
   private galaxyClock: THREE.Clock
+  private isMobile: boolean
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, isMobile: boolean = false) {
     this.scene = scene
     this.galaxyClock = new THREE.Clock()
+    this.isMobile = isMobile
   }
 
   public create() {
     const parameters = {
-      count: 8000, // Reduced from 20000
+      count: this.isMobile ? 3000 : 8000, // Reduced from 20000
       size: 0.02,
       radius: 60,
       branches: 3,
@@ -101,6 +103,14 @@ export class Nebula {
     if (this.galaxyMaterial && this.galaxyPoints) {
       this.galaxyMaterial.uniforms.uTime.value = this.galaxyClock.getElapsedTime() * 2
       this.galaxyPoints.rotation.z += delta * 0.02
+    }
+  }
+
+  public dispose() {
+    if (this.galaxyPoints) {
+      this.scene.remove(this.galaxyPoints)
+      this.galaxyPoints.geometry.dispose()
+      this.galaxyMaterial.dispose()
     }
   }
 }
