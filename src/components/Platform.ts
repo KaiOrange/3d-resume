@@ -168,7 +168,7 @@ export class Platform {
 
       // Physics - lower mass so robot can push them
       const cubeShape = new CANNON.Box(new CANNON.Vec3(1, 1, 1))
-      const cubeBody = new CANNON.Body({ mass: 2, material: this.objectMaterial })
+      const cubeBody = new CANNON.Body({ mass: 2, material: this.objectMaterial, allowSleep: false })
       cubeBody.addShape(cubeShape)
       cubeBody.position.set(pos.x, pos.y, pos.z)
       cubeBody.linearDamping = 0.5
@@ -201,7 +201,7 @@ export class Platform {
 
       // Physics - lower mass, proper cylinder orientation
       const cylShape = new CANNON.Cylinder(1, 1, 3, 16)
-      const cylBody = new CANNON.Body({ mass: 2, material: this.objectMaterial })
+      const cylBody = new CANNON.Body({ mass: 2, material: this.objectMaterial, allowSleep: false })
       cylBody.addShape(cylShape)
       cylBody.position.set(pos.x, pos.y, pos.z)
       cylBody.linearDamping = 0.5
@@ -235,6 +235,7 @@ export class Platform {
         material: this.objectMaterial,
         linearDamping: 0.8,
         angularDamping: 0.9,
+        allowSleep: false,
       })
       sphereBody.addShape(sphereShape)
       sphereBody.position.set(pos.x, pos.y, pos.z)

@@ -193,7 +193,7 @@ export class Game {
     // Input
     this.setupInput()
 
-    // Resize
+// Resize
     window.addEventListener('resize', this.boundOnResize)
   }
 
@@ -257,15 +257,17 @@ export class Game {
 
     // Cache input state
     const inputEnabled = this.cameraController.isFollowing()
+    const isInFlyIn = this.cameraController.isInFlyIn()
 
-    // Only build input when enabled
+    // Movement input works during fly-in (can move while intro plays)
+    // But camera look only works after fully entering
     let forward = false,
       backward = false,
       left = false,
       right = false,
       jump = false,
       attack = false
-    if (inputEnabled) {
+    if (inputEnabled || isInFlyIn) {
       forward = this.keys['KeyW'] || this.keys['ArrowUp'] || this.mobileMoveDirection.z > 0.3
       backward = this.keys['KeyS'] || this.keys['ArrowDown'] || this.mobileMoveDirection.z < -0.3
       left = this.keys['KeyA'] || this.keys['ArrowLeft'] || this.mobileMoveDirection.x < -0.3
@@ -277,8 +279,8 @@ export class Game {
     // Update physics
     this.physicsWorld.update(delta)
 
-    // Handle camera mouse look
-    if (inputEnabled && !this.cameraController.isInFlyIn()) {
+    // Camera look only works after entering (not during fly-in)
+    if (inputEnabled && !isInFlyIn) {
       const dx = this.mouseLookDelta.x
       const dy = this.mouseLookDelta.y
       this.mouseLookDelta.x = 0

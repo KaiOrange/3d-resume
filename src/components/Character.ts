@@ -72,6 +72,7 @@ export class Character {
       angularDamping: 0.99,
       collisionFilterGroup: 4,
       collisionFilterMask: 1 | 2,
+      allowSleep: false, // Never sleep to prevent getting stuck
     })
     this.body.addShape(bodyShape, new CANNON.Vec3(0, 0.5, 0))
     this.body.position.set(spawnPoint.x, spawnPoint.y, spawnPoint.z)
@@ -257,7 +258,7 @@ export class Character {
     this.body.quaternion.setFromEuler(0, this.rotationY, 0)
 
     // Keep character within platform bounds
-    const halfSize = platform.getSize() / 2 - 1
+    const halfSize = platform.getSize() / 2 - 1.5
     this.body.position.x = THREE.MathUtils.clamp(this.body.position.x, -halfSize, halfSize)
     this.body.position.z = THREE.MathUtils.clamp(this.body.position.z, -halfSize, halfSize)
   }
